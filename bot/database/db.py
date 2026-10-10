@@ -1,3 +1,4 @@
+import os
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -17,15 +18,42 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy import inspect
 
 
-# Путь к базе данных в корне проекта
-BASE_DIR = Path(__file__).resolve().parents[2]
-DB_PATH = BASE_DIR / "sleepy.db"
+# ============================================================
+# ПОДКЛЮЧЕНИЕ К БАЗЕ ДАННЫХ
+# ============================================================
+#
+# Локально (разработка) — SQLite (файл sleepy.db).
+# На хостинге — PostgreSQL через переменную DATABASE_URL.
+#
+# Если в .env есть DATABASE_URL — используется он.
+# Иначе — SQLite по пути sleepy.db в корне проекта.
+# ============================================================
 
-DATABASE_URL = f"sqlite:///{DB_PATH.as_posix()}"
+BASE_DIR = Path(__file__).resolve().parents[2]
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    # Fallback: локальная SQLite
+    DB_PATH = BASE_DIR / "sleepy.db"
+    DATABASE_URL = f"sqlite:///{DB_PATH.as_posix()}"
+    connect_args = {"check_same_thread": False}
+else:
+    # PostgreSQL: SQLAlchemy понимает URL вида postgresql://...
+    # Railway часто отдаёт postgres://, а SQLAlchemy 2.x требует postgresql://
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace(
+            "postgres://",
+            "postgresql://",
+            1,
+        )
+    connect_args = {}
+
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args=connect_args,
+    pool_pre_ping=True,     # проверка соединения перед запросом
 )
 
 SessionLocal = sessionmaker(
@@ -99,15 +127,19 @@ class Checkin(Base):
 
 def init_db():
     """
-    Создаёт таблицы, если их ещё нет,
-    и добавляет недостающие столбцы в старую базу.
+    Создаёт таблицы, если их ещё нет.
+    Для SQLite дополнительно добавляет недостающие столбцы
+    (миграции для старых баз).
+    Для PostgreSQL create_all создаст всё с нуля.
     """
     inspector = inspect(engine)
     existing_tables = inspector.get_table_names()
 
+    # Создаём отсутствующие таблицы
     Base.metadata.create_all(engine)
 
-    if "checkins" in existing_tables:
+    # Миграции только для SQLite (на случай старой базы)
+    if DATABASE_URL.startswith("sqlite") and "checkins" in existing_tables:
         columns = {
             column["name"]
             for column in inspector.get_columns("checkins")

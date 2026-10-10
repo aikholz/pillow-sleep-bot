@@ -576,3 +576,105 @@ def create_personal_test_data(telegram_id):
                 )
 
         session.commit()
+
+    # -------------------------
+    # Статистика для админа
+    # -------------------------
+
+    def get_active_users_count(days: int = 7) -> int:
+        """Сколько уникальных пользователей писали чек-ин за N дней."""
+        from datetime import date, timedelta
+
+        start_date = date.today() - timedelta(days=days)
+
+        with SessionLocal() as session:
+            result = session.query(
+                func.count(func.distinct(Checkin.telegram_id))
+            ).filter(
+                Checkin.checkin_date >= start_date
+            ).scalar()
+
+            return result or 0
+
+    def get_top_users(limit: int = 5):
+        """Топ-N пользователей по количеству чек-инов."""
+        with SessionLocal() as session:
+            rows = session.query(
+                User.name,
+                func.count(Checkin.id).label("checkins_count"),
+            ).join(
+                Checkin,
+                User.telegram_id == Checkin.telegram_id,
+            ).group_by(
+                User.telegram_id,
+                User.name,
+            ).order_by(
+                func.count(Checkin.id).desc()
+            ).limit(limit).all()
+
+            return [(row[0], row[1]) for row in rows]
+
+    def get_recent_users(limit: int = 5):
+        """Последние зарегистрированные пользователи."""
+        with SessionLocal() as session:
+            rows = session.query(
+                User.name,
+                User.age,
+                User.category,
+                User.created_at,
+            ).order_by(
+                User.created_at.desc()
+            ).limit(limit).all()
+
+            return [tuple(row) for row in rows]
+
+        # -------------------------
+        # Статистика для админа
+        # -------------------------
+
+        def get_active_users_count(days: int = 7) -> int:
+            """Сколько уникальных пользователей писали чек-ин за N дней."""
+            from datetime import date, timedelta
+
+            start_date = date.today() - timedelta(days=days)
+
+            with SessionLocal() as session:
+                result = session.query(
+                    func.count(func.distinct(Checkin.telegram_id))
+                ).filter(
+                    Checkin.checkin_date >= start_date
+                ).scalar()
+
+                return result or 0
+
+        def get_top_users(limit: int = 5):
+            """Топ-N пользователей по количеству чек-инов."""
+            with SessionLocal() as session:
+                rows = session.query(
+                    User.name,
+                    func.count(Checkin.id).label("checkins_count"),
+                ).join(
+                    Checkin,
+                    User.telegram_id == Checkin.telegram_id,
+                ).group_by(
+                    User.telegram_id,
+                    User.name,
+                ).order_by(
+                    func.count(Checkin.id).desc()
+                ).limit(limit).all()
+
+                return [(row[0], row[1]) for row in rows]
+
+        def get_recent_users(limit: int = 5):
+            """Последние зарегистрированные пользователи."""
+            with SessionLocal() as session:
+                rows = session.query(
+                    User.name,
+                    User.age,
+                    User.category,
+                    User.created_at,
+                ).order_by(
+                    User.created_at.desc()
+                ).limit(limit).all()
+
+                return [tuple(row) for row in rows]

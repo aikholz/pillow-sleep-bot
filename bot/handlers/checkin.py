@@ -204,14 +204,14 @@ async def process_wake_time(message: Message, state: FSMContext):
 @router.message(CheckinStates.sleep_quality, F.text.in_(["1", "2", "3", "4", "5"]))
 async def process_sleep_quality(message: Message, state: FSMContext):
     await state.update_data(sleep_quality=int(message.text))
-    await message.answer("Какое у тебя вчера было настроение?\nОцени от 1 до 5.", reply_markup=quality_keyboard)
+    await message.answer("Какое у тебя  было настроение после сна?\nОцени от 1 до 5.", reply_markup=quality_keyboard)
     await state.set_state(CheckinStates.mood)
 
 
 @router.message(CheckinStates.mood, F.text.in_(["1", "2", "3", "4", "5"]))
 async def process_mood(message: Message, state: FSMContext):
     await state.update_data(mood=int(message.text))
-    await message.answer("Какой вчера был уровень энергии?\nОцени от 1 до 5.", reply_markup=quality_keyboard)
+    await message.answer("Какой был уровень энергии после сна?\nОцени от 1 до 5.", reply_markup=quality_keyboard)
     await state.set_state(CheckinStates.energy)
 
 

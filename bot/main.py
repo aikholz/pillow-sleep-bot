@@ -5,6 +5,7 @@ import os
 from aiogram import Bot, Dispatcher
 from dotenv import load_dotenv
 
+from bot.handlers.charts import router as charts_router
 from bot.handlers.recommendations import router as recommendations_router
 from bot.handlers.analysis import router as analysis_router
 from bot.handlers.report import router as report_router
@@ -13,9 +14,10 @@ from bot.handlers.registration import router as registration_router
 from bot.handlers.checkin import router as checkin_router
 from bot.handlers.statistics import router as statistics_router
 from bot.handlers.help import router as help_router
+from bot.handlers.admin import router as admin_router
 from bot.database.db import init_db
 from bot.notifications import daily_reminder_loop
-
+from bot.handlers.export import router as export_router
 
 load_dotenv()
 
@@ -46,9 +48,12 @@ async def main():
     dp.include_router(report_router)
     dp.include_router(analysis_router)
     dp.include_router(recommendations_router)
+    dp.include_router(charts_router)
+    dp.include_router(export_router)
     dp.include_router(help_router)
+    dp.include_router(admin_router)
 
-    # Запускаем фоновую задачу с ежедневным напоминанием
+    # Фоновая задача с ежедневным напоминанием в 09:00
     asyncio.create_task(daily_reminder_loop(bot))
 
     logger.info("Бот запущен")

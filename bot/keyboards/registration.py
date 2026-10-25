@@ -12,19 +12,3 @@ category_keyboard = ReplyKeyboardMarkup(
     resize_keyboard=True,
     one_time_keyboard=True,
 )
-
-
-schedule_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [
-            KeyboardButton(text="☀️ Дневной"),
-            KeyboardButton(text="🌙 Ночной"),
-        ],
-        [
-            KeyboardButton(text="🔄 Сменный"),
-            KeyboardButton(text="🕐 Свободный"),
-        ],
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-)

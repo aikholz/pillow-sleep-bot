@@ -41,8 +41,10 @@ async def show_first_report(message: Message):
         )
         return
 
-    first_date = date.fromisoformat(first_date_str)
-
+    if isinstance(first_date_str, str):
+        first_date = date.fromisoformat(first_date_str)
+    else:
+        first_date = first_date_str
     report_end = first_date + timedelta(days=6)
 
     rows = get_checkins_for_period(

@@ -1,465 +1,201 @@
 import math
 from datetime import datetime
-
 from aiogram import F, Router
 from aiogram.types import Message
-
-from bot.database.db import get_checkins_for_analysis
-
+from bot.database.db import get_checkins_for_analysis, get_user
 
 router = Router()
 
 
-# ============================================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-# ============================================================
-
 def average(values):
     values = [v for v in values if v is not None]
-
-    if not values:
-        return None
-
-    return sum(values) / len(values)
+    return sum(values) / len(values) if values else None
 
 
 def correlation(x, y):
-    """Коэффициент корреляции Пирсона."""
-    pairs = [
-        (a, b)
-        for a, b in zip(x, y)
-        if a is not None and b is not None
-    ]
-
-    if len(pairs) < 5:
-        return None
-
-    x_values = [p[0] for p in pairs]
-    y_values = [p[1] for p in pairs]
-
-    avg_x = average(x_values)
-    avg_y = average(y_values)
-
-    numerator = sum(
-        (a - avg_x) * (b - avg_y)
-        for a, b in pairs
-    )
-
-    denominator_x = math.sqrt(
-        sum((a - avg_x) ** 2 for a in x_values)
-    )
-
-    denominator_y = math.sqrt(
-        sum((b - avg_y) ** 2 for b in y_values)
-    )
-
-    denominator = denominator_x * denominator_y
-
-    if denominator == 0:
-        return None
-
-    return numerator / denominator
+    pairs = [(a, b) for a, b in zip(x, y) if a is not None and b is not None]
+    if len(pairs) < 5: return None
+    x_vals, y_vals = [p[0] for p in pairs], [p[1] for p in pairs]
+    avg_x, avg_y = average(x_vals), average(y_vals)
+    num = sum((a - avg_x) * (b - avg_y) for a, b in pairs)
+    den_x = math.sqrt(sum((a - avg_x) ** 2 for a in x_vals))
+    den_y = math.sqrt(sum((b - avg_y) ** 2 for b in y_vals))
+    den = den_x * den_y
+    return num / den if den != 0 else None
 
 
 def strength_label(r):
-    """
-    Возвращает словесную оценку силы связи и её направления.
-    """
-    if r is None:
-        return None
-
+    if r is None: return None
     value = abs(r)
-
-    if value >= 0.7:
-        strength = "сильная"
-    elif value >= 0.5:
-        strength = "умеренная"
-    elif value >= 0.3:
-        strength = "слабая"
-    else:
-        return None   # слишком слабая, не показываем
-
-    if r > 0:
-        direction = "прямая"
-    else:
-        direction = "обратная"
-
-    return strength, direction
+    if value >= 0.7: return "сильная", "прямая" if r > 0 else "обратная"
+    if value >= 0.5: return "умеренная", "прямая" if r > 0 else "обратная"
+    if value >= 0.3: return "слабая", "прямая" if r > 0 else "обратная"
+    return None
 
 
 def plain_language(r, positive, negative):
-    """
-    Простое объяснение связи на человеческом языке.
-    """
     result = strength_label(r)
-
-    if result is None:
-        return None
-
+    if result is None: return None
     strength, direction = result
-
-    if r > 0:
-        text = positive
-    else:
-        text = negative
-
-    if strength == "сильная":
-        confidence = "Очень заметная закономерность."
-    elif strength == "умеренная":
-        confidence = "Заметная закономерность."
-    else:
-        confidence = "Слабая закономерность — могут быть исключения."
-
-    return (
-        f"{text}\n"
-        f"   Сила связи: {strength} {direction}. "
-        f"{confidence} (r={r:.2f})"
-    )
+    text = positive if r > 0 else negative
+    conf = "Очень заметная закономерность." if strength == "сильная" else "Заметная закономерность." if strength == "умеренная" else "Слабая закономерность — могут быть исключения."
+    return f"{text}\n   Сила связи: {strength} {direction}. {conf} (r={r:.2f})"
 
 
-# ============================================================
-# ПЕРЕВОДЫ ЗНАЧЕНИЙ
-# ============================================================
-
-def caffeine_to_number(value):
-    return {
-        "Не пил(а)": 0,
-        "1 чашка": 1,
-        "2 чашки": 2,
-        "3 и более": 3,
-    }.get(value, 0)
-
-
-def screen_to_number(value):
-    return {
-        "Не смотрел(а)": 0,
-        "До 30 минут": 1,
-        "30–60 минут": 2,
-        "Больше часа": 3,
-    }.get(value, 0)
-
-
-def activity_to_number(value):
-    return {
-        "Не было": 0,
-        "Лёгкая": 1,
-        "Средняя": 2,
-        "Высокая": 3,
-    }.get(value, 0)
-
-
-def nap_to_number(value):
-    return {
-        None: 0,
-        "До 30 минут": 0.5,
-        "30–60 минут": 1,
-        "Больше часа": 1.5,
-    }.get(value, 0)
+def caffeine_to_number(v): return {"Не пил(а)": 0, "1 чашка": 1, "2 чашки": 2, "3 и более": 3}.get(v, 0)
+def screen_to_number(v): return {"Не смотрел(а)": 0, "До 30 минут": 1, "30–60 минут": 2, "Больше часа": 3}.get(v, 0)
+def activity_to_number(v): return {"Не было": 0, "Лёгкая": 1, "Средняя": 2, "Высокая": 3}.get(v, 0)
+def nap_to_number(v): return {None: 0, "До 30 минут": 0.5, "30–60 минут": 1, "Больше часа": 1.5}.get(v, 0)
 
 
 def time_to_minutes(value):
-    if not value:
-        return None
-
+    if not value: return None
     try:
         dt = datetime.strptime(value, "%H:%M")
         return dt.hour * 60 + dt.minute
-    except ValueError:
-        return None
+    except ValueError: return None
 
 
-def caffeine_hours_before_sleep(caffeine_time, sleep_time):
-    caffeine_minutes = time_to_minutes(caffeine_time)
-    sleep_minutes = time_to_minutes(sleep_time)
+def caffeine_hours_before_sleep(c_time, s_time):
+    c_min, s_min = time_to_minutes(c_time), time_to_minutes(s_time)
+    if c_min is None or s_min is None: return None
+    diff = (s_min - c_min) % 1440
+    return diff / 60
 
-    if caffeine_minutes is None or sleep_minutes is None:
-        return None
-
-    difference = (sleep_minutes - caffeine_minutes) % 1440
-
-    if difference == 0:
-        return 0
-
-    return difference / 60
-
-
-# ============================================================
-# ОСНОВНОЙ ОБРАБОТЧИК
-# ============================================================
 
 @router.message(F.text == "🔎 Анализ")
 async def show_analysis(message: Message):
-    rows = get_checkins_for_analysis(message.from_user.id)
-
-    if len(rows) < 5:
-        await message.answer(
-            "🔎 Для полноценного анализа пока недостаточно данных.\n\n"
-            f"Заполнено дней: {len(rows)}\n"
-            "Нужно минимум 5 дней.\n\n"
-            "Продолжай заполнять ежедневный чек-ин 😴"
-        )
+    telegram_id = message.from_user.id
+    user = get_user(telegram_id)
+    if not user:
+        await message.answer("Сначала пройди регистрацию через /start.")
         return
 
-    sleep_values = []
-    quality_values = []
-    mood_values = []
-    energy_values = []
-    stress_values = []
+    _, name, age, category, schedule = user
+    category = category or ""
+    schedule = schedule or ""
 
-    caffeine_values = []
-    caffeine_before_sleep_values = []
+    rows = get_checkins_for_analysis(telegram_id)
 
-    screen_values = []
-    activity_values = []
-    nap_values = []
+    if len(rows) < 5:
+        await message.answer("🔎 Для полноценного анализа пока недостаточно данных.\n\nНужно минимум 5 дней.")
+        return
+
+    # --- СБОР ДАННЫХ ---
+    sleep, qual, mood, energy, stress = [], [], [], [], []
+    caf, caf_time_val, screen, act, nap = [], [], [], [], []
+    study_sleep, no_study_sleep = [], []
+    shift_groups = {}
 
     for row in rows:
-        (
-            sleep,
-            quality,
-            mood,
-            energy,
-            stress,
-            caffeine,
-            caffeine_time,
-            screen,
-            activity,
-            nap_taken,
-            nap_duration,
-            sleep_time,
-        ) = row
+        s, q, m, e, st = row[0], row[1], row[2], row[3], row[4]
+        if s is not None: sleep.append(s)
+        if q is not None: qual.append(q)
+        if m is not None: mood.append(m)
+        if e is not None: energy.append(e)
+        if st is not None: stress.append(st)
 
-        sleep_values.append(sleep)
-        quality_values.append(quality)
-        mood_values.append(mood)
-        energy_values.append(energy)
+        caf.append(caffeine_to_number(row[5]))
+        screen.append(screen_to_number(row[7]))
+        act.append(activity_to_number(row[8]))
+        nap.append(nap_to_number(row[10]) if row[9] else 0)
+        caf_time_val.append(caffeine_hours_before_sleep(row[6], row[11]))
 
-        if stress is not None:
-            stress_values.append(stress)
+        shift = row[12]
+        if shift:
+            if shift not in shift_groups: shift_groups[shift] = []
+            shift_groups[shift].append(s)
 
-        caffeine_values.append(
-            caffeine_to_number(caffeine)
-        )
+        if len(row) > 13 and row[13] is not None:
+            if row[13] == 1: study_sleep.append(s)
+            else: no_study_sleep.append(s)
 
-        screen_values.append(
-            screen_to_number(screen)
-        )
+    report = "🔎 АНАЛИЗ ТВОИХ ДАННЫХ\n\n"
+    report += "📊 СРЕДНИЕ ПОКАЗАТЕЛИ\n"
+    if average(sleep): report += f"😴 Сон: {average(sleep):.1f} ч\n"
+    if average(qual): report += f"⭐ Качество: {average(qual):.1f}/5\n"
+    if average(mood): report += f"🙂 Настроение: {average(mood):.1f}/5\n"
+    if average(energy): report += f"⚡ Энергия: {average(energy):.1f}/5\n"
+    if average(stress): report += f"😰 Стресс: {average(stress):.1f}/5\n"
 
-        activity_values.append(
-            activity_to_number(activity)
-        )
+    # --- ПРОФЕССИОНАЛЬНЫЕ ОТЛИЧИЯ ---
+    # --- ПРОФЕССИОНАЛЬНЫЕ ОТЛИЧИЯ ---
+    report += "\n🧩 АНАЛИЗ ПО ТВОЕЙ КАТЕГОРИИ\n"
+    if "Учебный" in category:
+        # Считаем сон по уровням нагрузки
+        none_load = []
+        medium_load = []
+        strong_load = []
+        for row in rows:
+            if len(row) > 13 and row[13] is not None and row[0] is not None:
+                if row[13] == 0:
+                    none_load.append(row[0])
+                elif row[13] == 1:
+                    medium_load.append(row[0])
+                elif row[13] == 2:
+                    strong_load.append(row[0])
 
-        nap_values.append(
-            nap_to_number(nap_duration)
-        )
+        report += "📚 Твой сон в зависимости от учебной нагрузки:\n"
+        if none_load:
+            report += f"• Без учебы: {average(none_load):.1f} ч\n"
+        if medium_load:
+            report += f"• Средняя нагрузка: {average(medium_load):.1f} ч\n"
+        if strong_load:
+            report += f"• Сильная нагрузка: {average(strong_load):.1f} ч\n"
 
-        caffeine_before_sleep = caffeine_hours_before_sleep(
-            caffeine_time,
-            sleep_time
-        )
+        if none_load and strong_load:
+            diff = average(none_load) - average(strong_load)
+            if diff > 0.5:
+                report += f"⚠️ При сильной нагрузке ты спишь на {diff:.1f} ч меньше.\n"
+    elif "Сменный" in category or "Ночной" in category.lower():
+        report += "🌙 Для сменного графика важно следить за восстановлением после ночных смен.\n"
+    elif "Офисный" in category:
+        report += "🧑‍💻 Для умственной работы важна стабильность режима и качество сна.\n"
+    elif "Физический" in category:
+        report += "🏃 Для физической работы сон — главный инструмент восстановления.\n"
+    elif "Свободный" in category:
+        report += "🎨 Для свободного графика важно не сбивать циркадные ритмы.\n"
+    # --- ОТЛИЧИЯ ПО ГРАФИКУ ---
+    if shift_groups and len(shift_groups) > 1:
+        report += "\n🔄 ТВОЙ СОН ПО ТИПАМ СМЕН\n"
+        for shift, vals in shift_groups.items():
+            if vals:
+                report += f"• {shift}: {average(vals):.1f} ч\n"
+    elif "Сменный" in schedule or "Ночной" in schedule:
+        report += "\n🔄 Для анализа по сменам нужно больше дней. Заполняй чек-ин в разные смены.\n"
 
-        caffeine_before_sleep_values.append(
-            caffeine_before_sleep
-        )
-
-    # --------------------------------------------------------
-    # ЗАГОЛОВОК И ПОЯСНЕНИЕ
-    # --------------------------------------------------------
-
-    report = (
-        "🔎 АНАЛИЗ ТВОИХ ДАННЫХ\n\n"
-
-        "Что я делаю:\n"
-        "Я ищу закономерности между твоими привычками "
-        "(сон, кофеин, экран, активность) и самочувствием "
-        "(настроение, энергия, стресс).\n\n"
-
-        "Как читать результат:\n"
-        "• «Прямая связь» — когда одно растёт, второе тоже растёт.\n"
-        "• «Обратная связь» — когда одно растёт, второе снижается.\n"
-        "• Чем сильнее связь, тем чаще она подтверждается в твоих данных.\n\n"
-
-        "⚠️ Важно: это наблюдаемые закономерности, "
-        "а не доказательство причины и следствия.\n"
-    )
-
-    # --------------------------------------------------------
-    # СРЕДНИЕ ПОКАЗАТЕЛИ
-    # --------------------------------------------------------
-
-    report += "\n📊 СРЕДНИЕ ПОКАЗАТЕЛИ\n\n"
-
-    if average(sleep_values) is not None:
-        report += f"😴 Сон: {average(sleep_values):.1f} ч\n"
-
-    if average(quality_values) is not None:
-        report += f"⭐ Качество: {average(quality_values):.1f}/5\n"
-
-    if average(mood_values) is not None:
-        report += f"🙂 Настроение: {average(mood_values):.1f}/5\n"
-
-    if average(energy_values) is not None:
-        report += f"⚡ Энергия: {average(energy_values):.1f}/5\n"
-
-    if stress_values and average(stress_values) is not None:
-        report += f"😰 Стресс: {average(stress_values):.1f}/5\n"
-
-    # --------------------------------------------------------
-    # СВЯЗИ
-    # --------------------------------------------------------
-
+    # --- КОРРЕЛЯЦИИ ---
     pairs = [
-        (
-            correlation(sleep_values, energy_values),
-            "😴→⚡ Чем больше ты спишь, тем выше твоя энергия.",
-            "😴→⚡ Чем больше ты спишь, тем ниже твоя энергия.",
-        ),
-        (
-            correlation(sleep_values, mood_values),
-            "😴→🙂 Чем больше ты спишь, тем лучше настроение.",
-            "😴→🙂 Чем больше ты спишь, тем хуже настроение.",
-        ),
-        (
-            correlation(sleep_values, quality_values),
-            "😴→⭐ Чем дольше сон, тем выше его качество.",
-            "😴→⭐ Чем дольше сон, тем ниже его качество.",
-        ),
-        (
-            correlation(sleep_values, stress_values),
-            "😴→😰 Чем больше ты спишь, тем выше стресс.",
-            "😴→😰 Чем больше ты спишь, тем ниже стресс.",
-        ),
-        (
-            correlation(quality_values, energy_values),
-            "⭐→⚡ Чем выше качество сна, тем больше энергии.",
-            "⭐→⚡ Чем выше качество сна, тем меньше энергии.",
-        ),
-        (
-            correlation(quality_values, mood_values),
-            "⭐→🙂 Чем выше качество сна, тем лучше настроение.",
-            "⭐→🙂 Чем выше качество сна, тем хуже настроение.",
-        ),
-        (
-            correlation(quality_values, stress_values),
-            "⭐→😰 Чем выше качество сна, тем выше стресс.",
-            "⭐→😰 Чем выше качество сна, тем ниже стресс.",
-        ),
-        (
-            correlation(stress_values, mood_values),
-            "😰→🙂 Чем выше стресс, тем лучше настроение.",
-            "😰→🙂 Чем выше стресс, тем хуже настроение.",
-        ),
-        (
-            correlation(stress_values, energy_values),
-            "😰→⚡ Чем выше стресс, тем больше энергии.",
-            "😰→⚡ Чем выше стресс, тем меньше энергии.",
-        ),
-        (
-            correlation(caffeine_values, sleep_values),
-            "☕→😴 Чем больше кофеина, тем дольше сон.",
-            "☕→😴 Чем больше кофеина, тем короче сон.",
-        ),
-        (
-            correlation(caffeine_values, quality_values),
-            "☕→⭐ Чем больше кофеина, тем выше качество сна.",
-            "☕→⭐ Чем больше кофеина, тем ниже качество сна.",
-        ),
-        (
-            correlation(screen_values, sleep_values),
-            "📱→😴 Чем больше экрана, тем дольше сон.",
-            "📱→😴 Чем больше экрана, тем короче сон.",
-        ),
-        (
-            correlation(screen_values, quality_values),
-            "📱→⭐ Чем больше экрана, тем выше качество сна.",
-            "📱→⭐ Чем больше экрана, тем ниже качество сна.",
-        ),
-        (
-            correlation(screen_values, energy_values),
-            "📱→⚡ Чем больше экрана, тем больше энергии.",
-            "📱→⚡ Чем больше экрана, тем меньше энергии.",
-        ),
-        (
-            correlation(activity_values, energy_values),
-            "🏃→⚡ Чем выше активность, тем больше энергии.",
-            "🏃→⚡ Чем выше активность, тем меньше энергии.",
-        ),
-        (
-            correlation(activity_values, quality_values),
-            "🏃→⭐ Чем выше активность, тем выше качество сна.",
-            "🏃→⭐ Чем выше активность, тем ниже качество сна.",
-        ),
-        (
-            correlation(nap_values, sleep_values),
-            "🌙→😴 Чем дольше дневной сон, тем дольше основной.",
-            "🌙→😴 Чем дольше дневной сон, тем короче основной.",
-        ),
-        (
-            correlation(nap_values, energy_values),
-            "🌙→⚡ Чем дольше дневной сон, тем больше энергии.",
-            "🌙→⚡ Чем дольше дневной сон, тем меньше энергии.",
-        ),
+        (correlation(caf, sleep), "☕→😴 Чем больше кофеина, тем дольше сон.", "☕→😴 Чем больше кофеина, тем короче сон."),
+        (correlation(caf, qual), "☕→⭐ Чем больше кофеина, тем выше качество.", "☕→⭐ Чем больше кофеина, тем ниже качество."),
+        (correlation(caf, mood), "☕→🙂 Кофеин улучшает настроение.", "☕→🙂 Кофеин ухудшает настроение."),
+        (correlation(screen, sleep), "📱→😴 Экран связан с более долгим сном.", "📱→😴 Экран связан с более коротким сном."),
+        (correlation(screen, qual), "📱→⭐ Экран связан с лучшим качеством.", "📱→⭐ Экран связан с худшим качеством."),
+        (correlation(act, sleep), "🏃→😴 Активность связана с более долгим сном.", "🏃→😴 Активность связана с более коротким сном."),
+        (correlation(act, qual), "🏃→⭐ Активность связана с лучшим качеством.", "🏃→⭐ Активность связана с худшим качеством."),
+        (correlation(nap, sleep), "🌙→😴 Дневной сон связан с более долгим ночным.", "🌙→😴 Дневной сон связан с более коротким ночным."),
+        (correlation(nap, qual), "🌙→⭐ Дневной сон связан с лучшим качеством.", "🌙→⭐ Дневной сон связан с худшим качеством."),
     ]
 
-    # Связь времени кофеина
-    valid_caffeine = [
-        v for v in caffeine_before_sleep_values if v is not None
-    ]
-
-    if len(valid_caffeine) >= 5:
-        r = correlation(
-            caffeine_before_sleep_values,
-            quality_values
-        )
-        pairs.append((
-            r,
-            "⏰→⭐ Чем больше времени между кофеином и сном, тем выше качество сна.",
-            "⏰→⭐ Чем ближе кофеин ко сну, тем выше качество сна.",
-        ))
-
-        r = correlation(
-            caffeine_before_sleep_values,
-            sleep_values
-        )
-        pairs.append((
-            r,
-            "⏰→😴 Чем раньше был кофеин, тем продолжительнее сон.",
-            "⏰→😴 Чем раньше был кофеин, тем короче сон.",
-        ))
-
-    # --------------------------------------------------------
-    # СОРТИРУЕМ СВЯЗИ ПО СИЛЕ
-    # --------------------------------------------------------
+    valid_caf = [v for v in caf_time_val if v is not None]
+    if len(valid_caf) >= 5:
+        r1 = correlation(caf_time_val, qual)
+        if r1: pairs.append((r1, "⏰→⭐ Чем больше времени между кофеином и сном, тем выше качество.", "⏰→⭐ Чем ближе кофеин ко сну, тем выше качество."))
+        r2 = correlation(caf_time_val, sleep)
+        if r2: pairs.append((r2, "⏰→😴 Чем раньше кофеин, тем продолжительнее сон.", "⏰→😴 Чем раньше кофеин, тем короче сон."))
 
     observations = []
-
-    for r, positive_text, negative_text in pairs:
-        result = plain_language(r, positive_text, negative_text)
-
-        if result:
-            observations.append((abs(r), result))
-
+    for r, pos, neg in pairs:
+        res = plain_language(r, pos, neg)
+        if res: observations.append((abs(r), res))
     observations.sort(key=lambda x: x[0], reverse=True)
 
-    report += "\n🔗 НАБЛЮДАЕМЫЕ СВЯЗИ\n\n"
-
+    report += "\n🔗 НАБЛЮДАЕМЫЕ СВЯЗИ\n"
     if observations:
-        # Показываем только связи с r >= 0.3
         for _, text in observations[:7]:
             report += f"• {text}\n\n"
     else:
-        report += (
-            "• Пока выраженных связей не обнаружено.\n"
-            "Продолжай заполнять чек-ины — "
-            "закономерности появятся по мере накопления данных.\n"
-        )
+        report += "• Пока выраженных связей не обнаружено.\n"
 
-    report += (
-        "\n📌 ИТОГ\n\n"
-        "Это наблюдаемые закономерности в твоих данных, "
-        "а не диагноз и не доказательство причины. "
-        "Чем больше дней ты заполняешь, тем точнее "
-        "становится анализ."
-    )
-
+    report += "\n📌 ИТОГ\nЭто наблюдаемые закономерности, а не диагноз."
     await message.answer(report)

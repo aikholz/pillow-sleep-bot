@@ -14,3 +14,9 @@ class CheckinStates(StatesGroup):
     physical_activity = State()
     stress = State()
     caffeine_time = State()
+
+    # Тип смены
+    shift_type = State()
+
+    # НОВОЕ: Учебная нагрузка (когда учился)
+    study_load = State()

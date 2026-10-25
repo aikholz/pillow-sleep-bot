@@ -67,3 +67,47 @@ activity_keyboard = ReplyKeyboardMarkup(
     ],
     resize_keyboard=True,
 )
+# ============================================================
+# НОВОЕ: клавиатуры для типа смены
+# ============================================================
+
+shift_type_shift_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Утро")],
+        [KeyboardButton(text="День")],
+        [KeyboardButton(text="Ночь")],
+        [KeyboardButton(text="Выходной")],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+)
+
+
+shift_type_night_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Работал(а) ночью")],
+        [KeyboardButton(text="Не работал(а)")],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+)
+
+
+shift_type_edu_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Учебный день")],
+        [KeyboardButton(text="Выходной")],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+)
+
+
+shift_type_free_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Рабочий день")],
+        [KeyboardButton(text="Свободный день")],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+)

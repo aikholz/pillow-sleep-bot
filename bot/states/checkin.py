@@ -18,5 +18,8 @@ class CheckinStates(StatesGroup):
     # Тип смены
     shift_type = State()
 
-    # НОВОЕ: Учебная нагрузка (когда учился)
+    # Учебная нагрузка
     study_load = State()
+
+    # Подтверждение перезаписи
+    confirm_overwrite = State()

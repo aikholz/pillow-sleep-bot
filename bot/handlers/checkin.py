@@ -32,19 +32,58 @@ study_load_keyboard = ReplyKeyboardMarkup(
     resize_keyboard=True, one_time_keyboard=True
 )
 
+# Клавиатура для подтверждения перезаписи
+overwrite_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Да, перезаписать"), KeyboardButton(text="Нет, отмена")]
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True
+)
+
 
 @router.message(F.text == "😴 Отметить сон")
 async def start_checkin(message: Message, state: FSMContext):
     yesterday = str(date.today() - timedelta(days=1))
 
+    # Проверяем, есть ли уже чек-ин за вчера
     if has_checkin_for_date(message.from_user.id, yesterday):
         await message.answer(
             "📌 Ты уже заполнял(а) чек-ин за вчера.\n\n"
-            "Если хочешь изменить данные — заполни заново, "
-            "новая запись перезапишет старую.\n\n"
-            "Продолжаем?"
+            "Хочешь перезаписать данные?",
+            reply_markup=overwrite_keyboard
         )
+        await state.set_state(CheckinStates.confirm_overwrite)
+        return
 
+    # Если нет — начинаем чек-ин
+    await proceed_checkin(message, state)
+
+
+@router.message(CheckinStates.confirm_overwrite, F.text == "Да, перезаписать")
+async def confirm_overwrite_yes(message: Message, state: FSMContext):
+    await proceed_checkin(message, state)
+
+
+@router.message(CheckinStates.confirm_overwrite, F.text == "Нет, отмена")
+async def confirm_overwrite_no(message: Message, state: FSMContext):
+    await message.answer(
+        "Хорошо, оставляем старые данные. Возвращаемся в меню.",
+        reply_markup=main_keyboard
+    )
+    await state.clear()
+
+
+@router.message(CheckinStates.confirm_overwrite)
+async def invalid_overwrite(message: Message):
+    await message.answer(
+        "Пожалуйста, выбери «Да, перезаписать» или «Нет, отмена».",
+        reply_markup=overwrite_keyboard
+    )
+
+
+async def proceed_checkin(message: Message, state: FSMContext):
+    """Основная логика чек-ина (без проверки на дубликат)."""
     user = get_user(message.from_user.id)
     if not user:
         await message.answer("Сначала пройди регистрацию через /start.")
@@ -204,14 +243,20 @@ async def process_wake_time(message: Message, state: FSMContext):
 @router.message(CheckinStates.sleep_quality, F.text.in_(["1", "2", "3", "4", "5"]))
 async def process_sleep_quality(message: Message, state: FSMContext):
     await state.update_data(sleep_quality=int(message.text))
-    await message.answer("Какое у тебя  было настроение после сна?\nОцени от 1 до 5.", reply_markup=quality_keyboard)
+    await message.answer(
+        "Какое у тебя настроение после сна?\nОцени от 1 до 5.",
+        reply_markup=quality_keyboard
+    )
     await state.set_state(CheckinStates.mood)
 
 
 @router.message(CheckinStates.mood, F.text.in_(["1", "2", "3", "4", "5"]))
 async def process_mood(message: Message, state: FSMContext):
     await state.update_data(mood=int(message.text))
-    await message.answer("Какой был уровень энергии после сна?\nОцени от 1 до 5.", reply_markup=quality_keyboard)
+    await message.answer(
+        "Какой у тебя уровень энергии после сна?\nОцени от 1 до 5.",
+        reply_markup=quality_keyboard
+    )
     await state.set_state(CheckinStates.energy)
 
 
@@ -293,7 +338,10 @@ async def process_screen_time(message: Message, state: FSMContext):
 @router.message(CheckinStates.physical_activity, F.text.in_(["Не было", "Лёгкая", "Средняя", "Высокая"]))
 async def process_physical_activity(message: Message, state: FSMContext):
     await state.update_data(physical_activity=message.text)
-    await message.answer("Какой уровень стресса был вчера?\nОцени от 1 до 5.", reply_markup=quality_keyboard)
+    await message.answer(
+        "Какой у тебя был уровень стресса вчера?\nОцени от 1 до 5.",
+        reply_markup=quality_keyboard
+    )
     await state.set_state(CheckinStates.stress)
 
 
@@ -302,7 +350,7 @@ async def process_stress(message: Message, state: FSMContext):
     await state.update_data(stress=int(message.text))
     data = await state.get_data()
 
-    # ВАЖНО: сохраняем за ВЧЕРА
+    # Сохраняем за ВЧЕРА
     yesterday = str(date.today() - timedelta(days=1))
 
     add_checkin(

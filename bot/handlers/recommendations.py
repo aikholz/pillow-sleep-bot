@@ -52,22 +52,18 @@ def analyze_personal_optimum(rows, target_sleep):
     for row in rows:
         if row[0] is None: continue
         s = float(row[0])
-        if lower <= s <= upper and row[3]:
-            in_range.append(float(row[3]))
-        elif s < lower and row[3]:
-            too_little.append(float(row[3]))
+        if lower <= s <= upper and row[3]: in_range.append(float(row[3]))
+        elif s < lower and row[3]: too_little.append(float(row[3]))
 
     insights = []
     avg_in = _avg(in_range)
     avg_low = _avg(too_little)
     if avg_in and avg_low and (avg_in - avg_low) > 0.5:
-        insights.append(
-            f"🎯 Твой оптимум сна: {lower:.1f}–{upper:.1f} ч. В этом диапазоне энергия {avg_in:.1f}/5, а при недосыпе падает до {avg_low:.1f}/5.")
+        insights.append(f"🎯 Твой оптимум сна: {lower:.1f}–{upper:.1f} ч. В этом диапазоне энергия {avg_in:.1f}/5, а при недосыпе падает до {avg_low:.1f}/5.")
     return insights
 
 
 def analyze_sleep_time(rows):
-    """Анализ: ложится ли человек до 23:00."""
     early_sleep_qual, late_sleep_qual = [], []
     for row in rows:
         sleep_time_str = row[11]
@@ -75,24 +71,19 @@ def analyze_sleep_time(rows):
         try:
             h, m = map(int, sleep_time_str.split(":"))
             if h < 12: h += 24
-            if h < 23:
-                early_sleep_qual.append(row[1])
-            else:
-                late_sleep_qual.append(row[1])
-        except:
-            pass
+            if h < 23: early_sleep_qual.append(row[1])
+            else: late_sleep_qual.append(row[1])
+        except: pass
 
     insights = []
     avg_early = _avg(early_sleep_qual)
     avg_late = _avg(late_sleep_qual)
     if avg_early and avg_late and (avg_early - avg_late) > 0.5:
-        insights.append(
-            f"🌙 Ложись до 23:00. В дни, когда ты засыпал(а) раньше, качество сна было выше ({avg_early:.1f}/5 vs {avg_late:.1f}/5).")
+        insights.append(f"🌙 Ложись до 23:00. В дни, когда ты засыпал(а) раньше, качество сна было выше ({avg_early:.1f}/5 vs {avg_late:.1f}/5).")
     return insights
 
 
 def analyze_shift_groups(rows):
-    """Группирует сон по типам смен."""
     groups = defaultdict(list)
     for row in rows:
         if len(row) > 12 and row[12] is not None and row[0] is not None:
@@ -100,8 +91,7 @@ def analyze_shift_groups(rows):
 
     result = {}
     for shift, sleeps in groups.items():
-        if sleeps:
-            result[shift] = sum(sleeps) / len(sleeps)
+        if sleeps: result[shift] = sum(sleeps) / len(sleeps)
     return result
 
 
@@ -137,19 +127,19 @@ async def recommendations_handler(message: Message):
         text += "\n".join(sleep_time_tips) + "\n"
         has_tips = True
 
-    # 3. АНАЛИЗ ПРИЧИН (СРАВНЕНИЕ ХОРОШИХ И ПЛОХИХ ДНЕЙ)
+    # 3. АНАЛИЗ ПРИЧИН
     causes = analyze_causes(rows)
     if causes:
         best, worst = causes["best"], causes["worst"]
         all_days = causes["all"]
 
-        # Проверка на пересып
+        # Пересып
         long_sleep_bad_days = [x for x in all_days if x["sleep"] > 9 and x["score"] < 0.6]
         if len(long_sleep_bad_days) >= 2:
             text += "⚠️ Пересып тоже вреден. В некоторые дни ты спал(а) больше 9 часов, но чувствовал(а) себя хуже обычного. Слишком долгий сон сбивает ритмы.\n"
             has_tips = True
 
-        # Проверка на резкие перепады
+        # Перепады
         sleeps_all = [x["sleep"] for x in all_days]
         if max(sleeps_all) - min(sleeps_all) > 4:
             text += "⚠️ Резкие перепады сна. У тебя были дни по 4 часа и по 9+. Отсыпание не компенсирует недосып — мозг истощается.\n"
@@ -185,7 +175,33 @@ async def recommendations_handler(message: Message):
                 text += f"😴 Ложись раньше. В лучшие дни ты спал(а) на {abs(b_slp - w_slp):.1f} ч больше.\n"
             has_tips = True
 
-    # 4. ЦИРКАДНЫЙ АНАЛИЗ (короткий совет)
+        # Новые проверки по качеству, стрессу, активности, экрану, кофеину
+        avg_quality = _avg([x["quality"] for x in best] + [x["quality"] for x in worst])
+        if avg_quality is not None and avg_quality < 3.0:
+            text += "⭐ Обрати внимание на условия сна: температура, свет, шум.\n"
+            has_tips = True
+
+        avg_stress = _avg([x["stress"] for x in best] + [x["stress"] for x in worst])
+        if avg_stress is not None and avg_stress >= 4.0:
+            text += "😰 Стресс высокий. Попробуй дыхательные практики перед сном.\n"
+            has_tips = True
+
+        avg_activity = _avg([x["activity"] for x in best] + [x["activity"] for x in worst])
+        if avg_activity is not None and avg_activity < 1.5:
+            text += "🏃 Добавь лёгкую прогулку за 2–3 часа до сна.\n"
+            has_tips = True
+
+        avg_screen = _avg([x["screen"] for x in best] + [x["screen"] for x in worst])
+        if avg_screen is not None and avg_screen > 1.5:
+            text += "📱 Экран перед сном мешает засыпанию. Попробуй читать книгу.\n"
+            has_tips = True
+
+        late_caffeine = [r for r in rows if r[6] and int(r[6].split(":")[0]) >= 17]
+        if len(late_caffeine) >= 2:
+            text += "☕ Кофеин вечером может ухудшить сон. Замени на травяной чай.\n"
+            has_tips = True
+
+    # 4. ЦИРКАДНЫЙ АНАЛИЗ
     period_start = date.today() - timedelta(days=30)
     circ_rows = get_checkins_for_period(telegram_id, str(period_start), str(date.today()))
     circ = analyze_circadian(circ_rows)
@@ -195,7 +211,6 @@ async def recommendations_handler(message: Message):
 
     # 5. ПРОФЕССИОНАЛЬНЫЕ СОВЕТЫ
     if "Учебный" in category:
-        # Считаем сон по уровням нагрузки
         strong_sleeps = [row[0] for row in rows if len(row) > 13 and row[13] == 2 and row[0]]
         none_sleeps = [row[0] for row in rows if len(row) > 13 and row[13] == 0 and row[0]]
 

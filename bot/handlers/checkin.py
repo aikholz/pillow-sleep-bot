@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta
 
-from aiogram import F, Router
+from aiogram import F, Router 
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
@@ -190,12 +190,17 @@ async def ask_sleep_time(message: Message, state: FSMContext):
 @router.message(CheckinStates.sleep_time)
 async def process_sleep_time(message: Message, state: FSMContext):
     if message.text.strip().lower() == "не спал":
-        await state.update_data(sleep_time="00:00", wake_time="00:00", sleep_duration=0)
+        # Если не спал, качество сна ставим 0
+        await state.update_data(
+            sleep_time="00:00", wake_time="00:00",
+            sleep_duration=0, sleep_quality=0
+        )
+        # Переходим сразу к настроению
         await message.answer(
-            "Понял, вчера без сна. Как оценишь качество?",
+            "Понял, вчера без сна.\n\nКакое у тебя настроение после сна?\nОцени от 1 до 5.",
             reply_markup=quality_keyboard
         )
-        await state.set_state(CheckinStates.sleep_quality)
+        await state.set_state(CheckinStates.mood)
         return
 
     try:
@@ -206,7 +211,7 @@ async def process_sleep_time(message: Message, state: FSMContext):
 
     await state.update_data(sleep_time=message.text.strip())
     await message.answer(
-        "Во сколько ты вчера проснулся(лась)?\nНапример: 07:30",
+        "Во сколько ты сегодня проснулся(лась)?\nНапример: 07:30",
         reply_markup=ReplyKeyboardRemove()
     )
     await state.set_state(CheckinStates.wake_time)

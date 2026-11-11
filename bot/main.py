@@ -18,7 +18,7 @@ from bot.handlers.admin import router as admin_router
 from bot.database.db import init_db
 from bot.notifications import daily_reminder_loop
 from bot.handlers.export import router as export_router
-
+from bot.handlers.facts import router as facts_router
 load_dotenv()
 
 TOKEN = os.getenv("BOT_TOKEN")
@@ -51,6 +51,7 @@ async def main():
     dp.include_router(charts_router)
     dp.include_router(export_router)
     dp.include_router(help_router)
+    dp.include_router(facts_router)
     dp.include_router(admin_router)
 
     # Фоновая задача с ежедневным напоминанием в 09:00

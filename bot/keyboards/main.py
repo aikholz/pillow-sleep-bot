@@ -16,6 +16,9 @@ main_keyboard = ReplyKeyboardMarkup(
             KeyboardButton(text="💡 Рекомендации"),
             KeyboardButton(text="📤 Экспорт данных"),
         ],
+        [
+            KeyboardButton(text="💡 Факт про сон"),   # <-- НОВАЯ КНОПКА
+        ],
         [KeyboardButton(text="ℹ️ Помощь")],
     ],
     resize_keyboard=True,

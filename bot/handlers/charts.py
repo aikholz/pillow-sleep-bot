@@ -15,6 +15,7 @@ from bot.logic.charts import (
     make_study_time_chart,
     make_circadian_chart,
     make_progress_chart,
+    make_shift_chart,
 )
 from bot.logic.sleep_model import (
     analyze_circadian,
@@ -122,7 +123,7 @@ async def show_charts(message: Message):
     # --------------------------------------------------------
     # ГРАФИК 4: Смены (только если есть данные)
     # --------------------------------------------------------
-    shift_chart = make_shift_chart(all_rows)
+    shift_chart = make_shift_chart(all_rows)  # <-- Передаем all_rows
     if shift_chart:
         await message.answer_photo(
             FSInputFile(shift_chart, filename="shift_sleep.png"),

@@ -228,7 +228,14 @@ async def show_analysis(message: Message):
             f"\n☕ В дни с кофеином ты засыпаешь в среднем в {h_c:02d}:{m_c:02d}, "
             f"а без него — в {h_n:02d}:{m_n:02d}.\n"
         )
+    # В analysis.py:
+    from bot.logic.sleep_model import analyze_shift_insights
 
+    # ... внутри show_analysis, после блока "ОТЛИЧИЯ ПО ГРАФИКУ" ...
+    shift_insights_text = analyze_shift_insights(rows)
+    if shift_insights_text:
+        report += "\n" + shift_insights_text
+    # ...
     # --- КОРРЕЛЯЦИИ ---
     pairs = [
         (correlation(caf, sleep), "☕→😴 Чем больше кофеина, тем дольше сон.",

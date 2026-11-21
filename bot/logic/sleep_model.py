@@ -524,11 +524,11 @@ def _format_time_from_minutes(minutes):
 
 def analyze_circadian(rows):
     """
-    rows — из get_checkins_for_period:
-        row[0]  = checkin_date
-        row[11] = sleep_time
-        row[12] = wake_time
+    Улучшенный циркадный анализ.
+    Считает медианное время сна и подъема для будней и выходных.
     """
+    from statistics import median
+
     weekday_sleeps = []
     weekend_sleeps = []
     weekday_wakes = []
@@ -548,9 +548,9 @@ def analyze_circadian(rows):
         if sleep_min is None or wake_min is None:
             continue
 
+        # Корректировка на переход через полночь
         if sleep_min < 12 * 60:
             sleep_min += 24 * 60
-
         if wake_min < sleep_min - 12 * 60:
             wake_min += 24 * 60
 
@@ -566,10 +566,11 @@ def analyze_circadian(rows):
     if not weekday_sleeps or not weekend_sleeps:
         return None
 
-    avg_wd_sleep = sum(weekday_sleeps) / len(weekday_sleeps)
-    avg_we_sleep = sum(weekend_sleeps) / len(weekend_sleeps)
-    avg_wd_wake = sum(weekday_wakes) / len(weekday_wakes)
-    avg_we_wake = sum(weekend_wakes) / len(weekend_wakes)
+    # Используем медиану вместо среднего, чтобы выбросы не искажали картину
+    avg_wd_sleep = median(weekday_sleeps)
+    avg_we_sleep = median(weekend_sleeps)
+    avg_wd_wake = median(weekday_wakes)
+    avg_we_wake = median(weekend_wakes)
 
     mid_wd = (avg_wd_sleep + avg_wd_wake) / 2
     mid_we = (avg_we_sleep + avg_we_wake) / 2
@@ -592,7 +593,6 @@ def analyze_circadian(rows):
         "weekday_count": len(weekday_sleeps),
         "weekend_count": len(weekend_sleeps),
     }
-
 
 def build_circadian_insights(circ):
     if not circ:

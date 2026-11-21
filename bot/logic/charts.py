@@ -115,11 +115,6 @@ def make_shift_chart(shift_stats):
 
     return _save_to_tempfile(fig)
 
-
-# ============================================================
-# ГРАФИК 3. Циркадный ритм
-# ============================================================
-
 def make_circadian_chart(circ):
     if not circ:
         return None
@@ -134,50 +129,33 @@ def make_circadian_chart(circ):
     def _shift(h):
         return h + 24 if h < 12 else h
 
+    # Точки
     ax.scatter([_shift(wd_sleep), _shift(we_sleep)], [1, 2], s=150, color=["#3B82F6", "#F87171"], zorder=4)
     ax.scatter([_shift(wd_wake), _shift(we_wake)], [1, 2], s=150, color=["#10B981", "#F59E0B"], marker="^", zorder=4)
 
-    if wd_sleep > wd_wake:
-        ax.plot([_shift(wd_sleep), 36], [1, 1], color="#3B82F6", linewidth=6, alpha=0.2, zorder=2)
-        ax.plot([24, _shift(wd_wake)], [1, 1], color="#10B981", linewidth=6, alpha=0.2, zorder=2)
-    else:
-        ax.plot([_shift(wd_sleep), _shift(wd_wake)], [1, 1], color="#6B7280", linewidth=6, alpha=0.2, zorder=2)
+    # Линии, показывающие сдвиг (если разница большая)
+    ax.plot([_shift(wd_sleep), _shift(we_sleep)], [1.5, 1.5], color="gray", linestyle="--", alpha=0.5)
+    ax.plot([_shift(wd_wake), _shift(we_wake)], [1.5, 1.5], color="gray", linestyle="--", alpha=0.5)
 
-    if we_sleep > we_wake:
-        ax.plot([_shift(we_sleep), 36], [2, 2], color="#F87171", linewidth=6, alpha=0.2, zorder=2)
-        ax.plot([24, _shift(we_wake)], [2, 2], color="#F59E0B", linewidth=6, alpha=0.2, zorder=2)
-    else:
-        ax.plot([_shift(we_sleep), _shift(we_wake)], [2, 2], color="#6B7280", linewidth=6, alpha=0.2, zorder=2)
-
+    # Ось X
     ax.set_xlim(20, 36)
     ticks = list(range(20, 24)) + list(range(24, 37))
     ax.set_xticks(ticks)
     ax.set_xticklabels([f"{h % 24:02d}:00" for h in ticks], rotation=45)
 
+    # Ось Y
     ax.set_yticks([1, 2])
     ax.set_yticklabels(["Будни", "Выходные"], fontsize=12, fontweight="bold")
     ax.set_ylim(0.5, 2.5)
 
     ax.set_title(f"Циркадный ритм (сдвиг: {circ['social_jetlag_hours']:.1f} ч)",
-                 fontsize=15, fontweight='bold', pad=20, color="#1F2937")
-
+                 fontsize=14, fontweight='bold', pad=15)
     ax.grid(True, axis="x", linestyle="--", alpha=0.3)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_visible(False)
 
-    legend_elements = [
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='#3B82F6', markersize=10, label='Сон (будни)'),
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='#F87171', markersize=10, label='Сон (вых.)'),
-        Line2D([0], [0], marker='^', color='w', markerfacecolor='#10B981', markersize=10, label='Подъем (будни)'),
-        Line2D([0], [0], marker='^', color='w', markerfacecolor='#F59E0B', markersize=10, label='Подъем (вых.)')
-    ]
-    ax.legend(handles=legend_elements, loc='upper center', bbox_to_anchor=(0.5, -0.15),
-              ncol=4, frameon=False, fontsize=10)
-
-    plt.tight_layout()
     return _save_to_tempfile(fig)
-
 
 # ============================================================
 # ГРАФИК 4. Учебная нагрузка (для студентов)
@@ -334,4 +312,47 @@ def make_progress_chart(rows):
 
     plt.title('Динамика твоего прогресса', fontsize=15, fontweight='bold')
     plt.tight_layout()
+    return _save_to_tempfile(fig)
+# ============================================================
+# ГРАФИК 7. Сменный график (Утро/День/Ночь/Выходной)
+# ============================================================
+
+def make_shift_chart(rows):
+    """
+    Строит столбцы среднего сна по типам смен.
+    rows — из get_checkins_for_analysis (row[12] — shift_type, row[0] — sleep_duration).
+    """
+    from collections import defaultdict
+    import matplotlib.pyplot as plt
+
+    groups = defaultdict(list)
+    for row in rows:
+        sleep = row[0]
+        shift_type = row[12]
+        if sleep is None or not shift_type:
+            continue
+        groups[shift_type].append(float(sleep))
+
+    if len(groups) < 2:
+        return None
+
+    # Сортируем по алфавиту для стабильности
+    labels = sorted(groups.keys())
+    values = [sum(groups[l]) / len(groups[l]) for l in labels]
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    colors = ["#3B82F6", "#F59E0B", "#EF4444", "#10B981", "#A78BFA"]
+    bars = ax.bar(labels, values, color=colors[:len(labels)], width=0.5)
+
+    for bar, val in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1,
+                f"{val:.1f} ч", ha="center", va="bottom", fontweight="bold")
+
+    ax.set_title("Средний сон по типам смен", fontsize=14, fontweight="bold")
+    ax.set_ylabel("Часы")
+    ax.set_ylim(0, max(values) + 1.5)
+    ax.grid(True, axis="y", alpha=0.3)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
     return _save_to_tempfile(fig)

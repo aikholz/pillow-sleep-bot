@@ -119,3 +119,15 @@ async def show_charts(message: Message):
         "📌 Это твои графики за последние 30 дней. "
         "Чем больше дней — тем точнее анализ."
     )
+    # --------------------------------------------------------
+    # ГРАФИК 4: Смены (только если есть данные)
+    # --------------------------------------------------------
+    shift_chart = make_shift_chart(all_rows)
+    if shift_chart:
+        await message.answer_photo(
+            FSInputFile(shift_chart, filename="shift_sleep.png"),
+            caption="🔄 <b>Сон по сменам</b>\n\nПоказывает, как ты спишь после разных типов смен.",
+            parse_mode="HTML",
+        )
+        import os
+        os.remove(shift_chart)

@@ -211,37 +211,41 @@ async def recommendations_handler(message: Message):
         text += f"\n🕐 Стабилизируй режим. Твой сдвиг сна на выходных — {circ['social_jetlag_hours']:.1f} ч. Старайся вставать в одно и то же время.\n"
         has_tips = True
 
-    # 5. ПРОФЕССИОНАЛЬНЫЕ СОВЕТЫ
-    if "Учебный" in category:
-        strong_sleeps = [row[0] for row in rows if len(row) > 13 and row[13] == 2 and row[0]]
-        none_sleeps = [row[0] for row in rows if len(row) > 13 and row[13] == 0 and row[0]]
+    # 5. ПРОФЕССИОНАЛЬНЫЕ И ГРАФИКОВЫЕ СОВЕТЫ
+    from collections import defaultdict
 
-        if strong_sleeps and none_sleeps:
-            avg_strong = sum(strong_sleeps) / len(strong_sleeps)
-            avg_none = sum(none_sleeps) / len(none_sleeps)
-            diff = avg_none - avg_strong
-            if diff > 0.5:
-                text += f"\n📚 При сильной нагрузке ты спишь на {diff:.1f} ч меньше. Постарайся планировать дедлайны так, чтобы не жертвовать сном.\n"
-            else:
-                text += "\n📚 Ты хорошо справляешься с нагрузкой — сон почти не страдает.\n"
-        else:
-            text += "\n📚 Для учебы: старайся не сдвигать сон в выходные. Стабильное время подъема помогает концентрации.\n"
-    elif "Сменный" in schedule or "Сменный" in category:
-        text += "\n🔄 Для сменного графика: после ночной смены старайся спать в темной комнате. Свет сбивает выработку мелатонина.\n"
+    # Анализ по сменам
+    shift_groups = defaultdict(list)
+    for row in rows:
+        if len(row) > 12 and row[12] and row[0]:
+            shift_groups[row[12]].append(float(row[0]))
+
+    if len(shift_groups) >= 2:
+        # Находим худшую смену
+        worst_shift = min(shift_groups, key=lambda k: sum(shift_groups[k]) / len(shift_groups[k]))
+        worst_avg = sum(shift_groups[worst_shift]) / len(shift_groups[worst_shift])
+        best_shift = max(shift_groups, key=lambda k: sum(shift_groups[k]) / len(shift_groups[k]))
+        best_avg = sum(shift_groups[best_shift]) / len(shift_groups[best_shift])
+
+        if best_avg - worst_avg >= 1.0:
+            text += f"\n🔄 Твоя самая тяжелая смена — «{worst_shift}» (в среднем {worst_avg:.1f} ч сна), а самая легкая — «{best_shift}» ({best_avg:.1f} ч). Попробуй в дни смены «{worst_shift}» ложиться на полчаса раньше."
+            has_tips = True
+
+    if "Сменный" in schedule or "Сменный" in category:
+        text += "\n🔄 При сменном графике старайся не сбивать режим: даже если смена выпадает на ночь, ложись в одно и то же время в остальные дни."
         has_tips = True
     elif "Ночной" in schedule or "Ночной" in category:
-        text += "\n🌙 Для ночного графика: не пей кофе после 2-3 часов ночи, иначе не уснешь утром.\n"
+        text += "\n🌙 При ночном графике используй свет: яркий свет в начале смены и темнота по пути домой помогут быстрее уснуть."
+        has_tips = True
+    elif "Учебный" in category:
+        text += "\n📚 При учебе старайся не сдвигать сон в выходные более чем на 1 час, чтобы не сбить режим к понедельнику."
         has_tips = True
     elif "Офисный" in category:
-        text += "\n🧑‍💻 Для офисной работы: вставай из-за стола каждый час. Сидячий образ жизни ухудшает качество сна.\n"
+        text += "\n🧑‍💻 При сидячей работе добавь короткую прогулку за 2–3 часа до сна — это улучшит качество отдыха."
         has_tips = True
     elif "Физический" in category:
-        text += "\n🏃 Для физической работы: не тренируйся позже 3 часов до сна. Организм не успеет восстановиться.\n"
+        text += "\n🏃 При физической нагрузке старайся заканчивать тренировки за 3 часа до сна, чтобы организм успел восстановиться."
         has_tips = True
-    elif "Свободный" in category:
-        text += "\n🎨 Для свободного графика: ставь будильник на одно и то же время даже в выходные. Это стабилизирует циркадные ритмы.\n"
-        has_tips = True
-
     # 6. СОВЕТЫ ПО ГРАФИКУ (самая тяжелая смена)
     shift_groups = analyze_shift_groups(rows)
     if shift_groups and len(shift_groups) > 1:

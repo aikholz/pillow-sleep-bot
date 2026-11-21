@@ -61,11 +61,19 @@ def generate_pdf(rows, user_info, period_rows):
     tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False, dir=tempfile.gettempdir())
     tmp.close()
 
-    # Регистрируем шрифт для кириллицы
-    # Используем шрифт из библиотеки matplotlib (он всегда есть)
     import matplotlib.font_manager as fm
-    font_path = fm.findfont("DejaVu Sans")
-    pdfmetrics.registerFont(TTFont('Arial', font_path))
+    # Ищем шрифт, который точно есть на сервере
+    try:
+        font_path = fm.findfont("DejaVu Sans")
+    except Exception:
+        font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+
+    if not os.path.exists(font_path):
+        # Если всё сломалось, берем стандартный шрифт reportlab (он может не поддерживать кириллицу, но не упадет)
+        font_path = "Helvetica"
+        pdfmetrics.registerFont(TTFont('Arial', font_path))
+    else:
+        pdfmetrics.registerFont(TTFont('Arial', font_path))
     doc = SimpleDocTemplate(tmp.name, pagesize=A4, rightMargin=2 * cm, leftMargin=2 * cm, topMargin=2 * cm, bottomMargin=2 * cm)
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontName='Arial', fontSize=20, spaceAfter=20, textColor=colors.HexColor("#1F2937"))

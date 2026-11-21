@@ -62,11 +62,10 @@ def generate_pdf(rows, user_info, period_rows):
     tmp.close()
 
     # Регистрируем шрифт для кириллицы
-    font_path = "C:\\Windows\\Fonts\\arial.ttf"
-    if not os.path.exists(font_path):
-        font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf" # Для Linux
+    # Используем шрифт из библиотеки matplotlib (он всегда есть)
+    import matplotlib.font_manager as fm
+    font_path = fm.findfont("DejaVu Sans")
     pdfmetrics.registerFont(TTFont('Arial', font_path))
-
     doc = SimpleDocTemplate(tmp.name, pagesize=A4, rightMargin=2 * cm, leftMargin=2 * cm, topMargin=2 * cm, bottomMargin=2 * cm)
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontName='Arial', fontSize=20, spaceAfter=20, textColor=colors.HexColor("#1F2937"))

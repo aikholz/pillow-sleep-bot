@@ -445,3 +445,115 @@ async def process_stress_inline(callback: CallbackQuery, state: FSMContext):
         reply_markup=main_keyboard
     )
     await state.clear()
+
+
+@router.message(F.text == "/test30")
+async def create_educational_test_data(message: Message):
+    from bot.database.db import SessionLocal, Checkin
+    from datetime import date, timedelta
+    import random
+
+    today = date.today()
+    telegram_id = message.from_user.id
+
+    # Генерируем данные за 30 дней
+    with SessionLocal() as session:
+        for i in range(30):
+            checkin_date = today - timedelta(days=30 - i)
+
+            # Логика: чередуем нагрузку и качество сна
+            # Дни с сильной нагрузкой (каждый 3-й день)
+            if i % 3 == 0:
+                study_load = 2  # Сильная нагрузка
+                sleep_duration = round(random.uniform(5.5, 6.5), 1)  # Мало сна
+                sleep_quality = random.randint(2, 3)
+                mood = random.randint(2, 3)
+                energy = random.randint(2, 3)
+                stress = random.randint(4, 5)
+                screen_time = "Больше часа"
+                caffeine = "3 и более"
+                caffeine_time = "19:00"
+                physical_activity = "Не было"
+                shift_type = "Учёба: Сильная"
+                sleep_time = "02:00"
+                wake_time = "08:00"
+
+            # Дни со средней нагрузкой (каждый 3-й день)
+            elif i % 3 == 1:
+                study_load = 1  # Средняя нагрузка
+                sleep_duration = round(random.uniform(6.5, 7.5), 1)
+                sleep_quality = random.randint(3, 4)
+                mood = random.randint(3, 4)
+                energy = random.randint(3, 4)
+                stress = random.randint(2, 3)
+                screen_time = "30–60 минут"
+                caffeine = "1 чашка"
+                caffeine_time = "14:00"
+                physical_activity = "Лёгкая"
+                shift_type = "Учёба: Средняя"
+                sleep_time = "00:00"
+                wake_time = "07:30"
+
+            # Дни без учебы / выходные (каждый 3-й день)
+            else:
+                study_load = 0  # Нет учебы
+                sleep_duration = round(random.uniform(8.0, 9.0), 1)
+                sleep_quality = random.randint(4, 5)
+                mood = random.randint(4, 5)
+                energy = random.randint(4, 5)
+                stress = random.randint(1, 2)
+                screen_time = "До 30 минут"
+                caffeine = "Не пил(а)"
+                caffeine_time = None
+                physical_activity = "Высокая"
+                shift_type = "Выходной"
+                sleep_time = "23:00"
+                wake_time = "08:30"
+
+            # Проверяем, нет ли уже записи на этот день
+            checkin = session.query(Checkin).filter_by(
+                telegram_id=telegram_id,
+                checkin_date=checkin_date,
+            ).first()
+
+            values = {
+                "sleep_time": sleep_time,
+                "wake_time": wake_time,
+                "sleep_duration": sleep_duration,
+                "sleep_quality": sleep_quality,
+                "mood": mood,
+                "energy": energy,
+                "nap_taken": 0,
+                "nap_duration": None,
+                "caffeine": caffeine,
+                "caffeine_time": caffeine_time,
+                "screen_time": screen_time,
+                "physical_activity": physical_activity,
+                "stress": stress,
+                "shift_type": shift_type,
+                "study_load": study_load,
+            }
+
+            if checkin:
+                for key, value in values.items():
+                    setattr(checkin, key, value)
+            else:
+                session.add(
+                    Checkin(
+                        telegram_id=telegram_id,
+                        checkin_date=checkin_date,
+                        **values,
+                    )
+                )
+
+        session.commit()
+
+    await message.answer(
+        "🧪 Тестовые данные за 30 дней созданы!\n\n"
+        "📚 График: Учебный\n"
+        "📊 Включены дни с сильной, средней нагрузкой и выходные.\n\n"
+        "Теперь нажми:\n"
+        "📊 Статистика\n"
+        "📈 Мой прогресс\n"
+        "💡 Рекомендации"
+    )

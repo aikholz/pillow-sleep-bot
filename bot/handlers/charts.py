@@ -21,7 +21,7 @@ from bot.logic.sleep_model import (
 router = Router()
 
 
-@router.message(F.text == "📈 Графики")
+@router.message(F.text == "📈 Мой прогресс")
 async def show_charts(message: Message):
     user = get_user(message.from_user.id)
 
@@ -113,3 +113,12 @@ async def show_charts(message: Message):
         "📌 Это твои графики за последние 30 дней. "
         "Чем больше дней — тем точнее анализ."
     )
+    path_progress = make_progress_chart(period_rows)
+    if path_progress:
+        await message.answer_photo(
+            FSInputFile(path_progress, filename="progress.png"),
+            caption="📈 <b>Динамика твоего прогресса</b>\n\nСиняя линия — сон, желтая — качество.",
+            parse_mode="HTML",
+        )
+        import os
+        os.remove(path_progress)

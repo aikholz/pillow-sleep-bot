@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from bot.handlers.charts import router as charts_router
 from bot.handlers.recommendations import router as recommendations_router
 from bot.handlers.analysis import router as analysis_router
-from bot.handlers.report import router as report_router
 from bot.handlers.start import router as start_router
 from bot.handlers.registration import router as registration_router
 from bot.handlers.checkin import router as checkin_router
@@ -45,7 +44,6 @@ async def main():
     dp.include_router(registration_router)
     dp.include_router(checkin_router)
     dp.include_router(statistics_router)
-    dp.include_router(report_router)
     dp.include_router(analysis_router)
     dp.include_router(recommendations_router)
     dp.include_router(charts_router)

@@ -1,23 +1,19 @@
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
-
 main_keyboard = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="😴 Отметить сон")],
+        [KeyboardButton(text="😴 Мой сон")],
         [
-            KeyboardButton(text="📊 Моя статистика"),
-            KeyboardButton(text="📈 Графики"),
+            KeyboardButton(text="📊 Статистика"),
+            KeyboardButton(text="📈 Мой прогресс"),
         ],
         [
-            KeyboardButton(text="📈 Первый отчёт"),
             KeyboardButton(text="🔎 Анализ"),
-        ],
-        [
             KeyboardButton(text="💡 Рекомендации"),
-            KeyboardButton(text="📤 Экспорт данных"),
         ],
         [
-            KeyboardButton(text="💡 Факт про сон"),   # <-- НОВАЯ КНОПКА
+            KeyboardButton(text="📤 Экспорт данных"),
+            KeyboardButton(text="💡 Факт про сон"),
         ],
         [KeyboardButton(text="ℹ️ Помощь")],
     ],

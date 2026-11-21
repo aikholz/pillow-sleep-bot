@@ -1,113 +1,122 @@
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
-
-
-quality_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [
-            KeyboardButton(text="1"),
-            KeyboardButton(text="2"),
-            KeyboardButton(text="3"),
-            KeyboardButton(text="4"),
-            KeyboardButton(text="5"),
-        ]
-    ],
-    resize_keyboard=True,
+from aiogram.types import (
+    KeyboardButton, ReplyKeyboardMarkup,
+    InlineKeyboardMarkup, InlineKeyboardButton
 )
 
+# ============================================================
+# REPLY-КЛАВИАТУРЫ (для ввода времени и текста)
+# ============================================================
 
 yes_no_keyboard = ReplyKeyboardMarkup(
     keyboard=[
+        [KeyboardButton(text="Да"), KeyboardButton(text="Нет")]
+    ],
+    resize_keyboard=True,
+)
+
+time_suggestions_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="22:00"), KeyboardButton(text="22:30"), KeyboardButton(text="23:00")],
+        [KeyboardButton(text="23:30"), KeyboardButton(text="00:00"), KeyboardButton(text="01:00")],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True
+)
+
+wake_time_suggestions_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="06:30"), KeyboardButton(text="07:00"), KeyboardButton(text="07:30")],
+        [KeyboardButton(text="08:00"), KeyboardButton(text="08:30"), KeyboardButton(text="09:00")],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True
+)
+
+# ============================================================
+# INLINE-КЛАВИАТУРЫ (для быстрых ответов)
+# ============================================================
+
+def get_quality_inline() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
         [
-            KeyboardButton(text="Да"),
-            KeyboardButton(text="Нет"),
+            InlineKeyboardButton(text="1 😫", callback_data="qual_1"),
+            InlineKeyboardButton(text="2 🙁", callback_data="qual_2"),
+            InlineKeyboardButton(text="3 😐", callback_data="qual_3"),
+            InlineKeyboardButton(text="4 🙂", callback_data="qual_4"),
+            InlineKeyboardButton(text="5 😄", callback_data="qual_5"),
         ]
-    ],
-    resize_keyboard=True,
-)
+    ])
+def get_yes_no_inline() -> InlineKeyboardMarkup:
+    """Да / Нет."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="Да", callback_data="yes"),
+            InlineKeyboardButton(text="Нет", callback_data="no")
+        ]
+    ])
 
+def get_nap_duration_inline() -> InlineKeyboardMarkup:
+    """Длительность дневного сна."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="До 30 минут", callback_data="nap_30")],
+        [InlineKeyboardButton(text="30–60 минут", callback_data="nap_60")],
+        [InlineKeyboardButton(text="Больше часа", callback_data="nap_more")],
+    ])
 
-nap_duration_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="До 30 минут")],
-        [KeyboardButton(text="30–60 минут")],
-        [KeyboardButton(text="Больше часа")],
-    ],
-    resize_keyboard=True,
-)
+def get_caffeine_inline() -> InlineKeyboardMarkup:
+    """Количество кофеина."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Не пил(а)", callback_data="caf_0")],
+        [InlineKeyboardButton(text="1 чашка", callback_data="caf_1")],
+        [InlineKeyboardButton(text="2 чашки", callback_data="caf_2")],
+        [InlineKeyboardButton(text="3 и более", callback_data="caf_3")],
+    ])
 
+def get_screen_time_inline() -> InlineKeyboardMarkup:
+    """Экранное время."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Не смотрел(а)", callback_data="scr_0")],
+        [InlineKeyboardButton(text="До 30 минут", callback_data="scr_1")],
+        [InlineKeyboardButton(text="30–60 минут", callback_data="scr_2")],
+        [InlineKeyboardButton(text="Больше часа", callback_data="scr_3")],
+    ])
 
-caffeine_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Не пил(а)")],
-        [KeyboardButton(text="1 чашка")],
-        [KeyboardButton(text="2 чашки")],
-        [KeyboardButton(text="3 и более")],
-    ],
-    resize_keyboard=True,
-)
+def get_activity_inline() -> InlineKeyboardMarkup:
+    """Физическая активность."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Не было", callback_data="act_0")],
+        [InlineKeyboardButton(text="Лёгкая", callback_data="act_1")],
+        [InlineKeyboardButton(text="Средняя", callback_data="act_2")],
+        [InlineKeyboardButton(text="Высокая", callback_data="act_3")],
+    ])
 
+def get_shift_type_inline() -> InlineKeyboardMarkup:
+    """Тип смены."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Утро", callback_data="shift_Утро")],
+        [InlineKeyboardButton(text="День", callback_data="shift_День")],
+        [InlineKeyboardButton(text="Ночь", callback_data="shift_Ночь")],
+        [InlineKeyboardButton(text="Выходной", callback_data="shift_Выходной")],
+    ])
 
-screen_time_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Не смотрел(а)")],
-        [KeyboardButton(text="До 30 минут")],
-        [KeyboardButton(text="30–60 минут")],
-        [KeyboardButton(text="Больше часа")],
-    ],
-    resize_keyboard=True,
-)
+def get_night_shift_inline() -> InlineKeyboardMarkup:
+    """Работал ночью?"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Работал(а) ночью", callback_data="night_yes")],
+        [InlineKeyboardButton(text="Не работал(а)", callback_data="night_no")],
+    ])
 
+def get_study_load_inline() -> InlineKeyboardMarkup:
+    """Учебная нагрузка."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Нет учебы", callback_data="study_0")],
+        [InlineKeyboardButton(text="Средняя нагрузка", callback_data="study_1")],
+        [InlineKeyboardButton(text="Сильная нагрузка", callback_data="study_2")],
+    ])
 
-activity_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Не было")],
-        [KeyboardButton(text="Лёгкая")],
-        [KeyboardButton(text="Средняя")],
-        [KeyboardButton(text="Высокая")],
-    ],
-    resize_keyboard=True,
-)
-# ============================================================
-# НОВОЕ: клавиатуры для типа смены
-# ============================================================
-
-shift_type_shift_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Утро")],
-        [KeyboardButton(text="День")],
-        [KeyboardButton(text="Ночь")],
-        [KeyboardButton(text="Выходной")],
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-)
-
-
-shift_type_night_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Работал(а) ночью")],
-        [KeyboardButton(text="Не работал(а)")],
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-)
-
-
-shift_type_edu_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Учебный день")],
-        [KeyboardButton(text="Выходной")],
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-)
-
-
-shift_type_free_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Рабочий день")],
-        [KeyboardButton(text="Свободный день")],
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-)
+def get_overwrite_inline() -> InlineKeyboardMarkup:
+    """Подтверждение перезаписи."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Да, перезаписать", callback_data="overwrite_yes")],
+        [InlineKeyboardButton(text="❌ Нет, отмена", callback_data="overwrite_no")],
+    ])

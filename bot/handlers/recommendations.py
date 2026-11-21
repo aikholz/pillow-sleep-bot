@@ -35,6 +35,8 @@ def analyze_causes(rows):
         scored.append({
             "score": sum(score_parts) / sum([0.4, 0.3, 0.2, 0.1][:len(score_parts)]),
             "sleep": float(sleep),
+            "quality": qual,  # <-- ДОБАВИТЬ
+            "stress": stress,  # <-- ДОБАВИТЬ
             "caffeine": caffeine_to_number(row[5]),
             "screen": screen_to_number(row[7]),
             "activity": activity_to_number(row[8]),

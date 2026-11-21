@@ -7,10 +7,11 @@ from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from bot.database.db import add_checkin, has_checkin_for_date, get_user
 from bot.states.checkin import CheckinStates
 from bot.keyboards.checkin import (
-    get_quality_inline, get_yes_no_inline, get_nap_duration_inline,
+    get_quality_inline, get_mood_inline, get_energy_inline, get_stress_inline,
+    get_yes_no_inline, get_nap_duration_inline,
     get_caffeine_inline, get_screen_time_inline, get_activity_inline,
     get_shift_type_inline, get_night_shift_inline, get_study_load_inline,
-    get_overwrite_inline, time_suggestions_keyboard, wake_time_suggestions_keyboard
+    get_overwrite_inline, time_suggestions_keyboard, wake_time_suggestions_keyboard,
 )
 from bot.keyboards.main import main_keyboard
 
@@ -18,18 +19,16 @@ router = Router()
 
 
 # ============================================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (прогресс-бар и удаление)
+# ВСПОМОГАТЕЛЬНЫЕ
 # ============================================================
 
 def get_progress_bar(step: int, total: int = 12) -> str:
-    """Генерирует визуальный прогресс-бар."""
     filled = "■" * step
     empty = "□" * (total - step)
     return f"[{filled}{empty}] {step}/{total}\n\n"
 
 
 async def delete_previous_msg(callback: CallbackQuery):
-    """Удаляет сообщение, на котором нажали кнопку (чтобы не засорять чат)."""
     try:
         await callback.message.delete()
     except Exception:
@@ -47,7 +46,7 @@ async def start_checkin(message: Message, state: FSMContext):
     if has_checkin_for_date(message.from_user.id, yesterday):
         await message.answer(
             "📌 Ты уже заполнял(а) чек-ин за вчера.\n\nХочешь перезаписать данные?",
-            reply_markup=get_overwrite_inline()
+            reply_markup=get_overwrite_inline(),
         )
         await state.set_state(CheckinStates.confirm_overwrite)
         return
@@ -87,46 +86,47 @@ async def proceed_checkin(message: Message, state: FSMContext):
         progress = get_progress_bar(1)
         await message.answer(
             progress + "Какая вчера была учебная нагрузка?",
-            reply_markup=get_study_load_inline()
+            reply_markup=get_study_load_inline(),
         )
         await state.set_state(CheckinStates.study_load)
         return
 
-    # 2. Сменный / Ночной / Свободный
+    # 2. Сменный график
     if "Сменный" in schedule or "Сменный" in category:
         progress = get_progress_bar(1)
         await message.answer(
             progress + "Какая вчера была смена?",
-            reply_markup=get_shift_type_inline()
+            reply_markup=get_shift_type_inline(),
         )
         await state.set_state(CheckinStates.shift_type)
         return
 
+    # 3. Ночной график
     if "Ночной" in schedule or "ночной" in category.lower():
         progress = get_progress_bar(1)
         await message.answer(
             progress + "Ты работал(а) вчера ночью?",
-            reply_markup=get_night_shift_inline()
+            reply_markup=get_night_shift_inline(),
         )
         await state.set_state(CheckinStates.shift_type)
         return
 
-    # 3. Обычный день (пропускаем вопрос про смену)
+    # 4. Обычный день
     await state.update_data(shift_type=None, study_load=0)
     await ask_sleep_time(message, state)
 
 
 # ============================================================
-# ШАГИ ЧЕК-ИНА (Ввод текста и времени)
+# ШАГИ ЧЕК-ИНА
 # ============================================================
 
 async def ask_sleep_time(message: Message, state: FSMContext):
-    progress = get_progress_bar(1)  # Примерная логика
+    progress = get_progress_bar(1)
     await message.answer(
         progress + "Во сколько ты вчера лёг(ла) спать?\n"
-                   "Напиши время в формате ЧЧ:ММ или выбери кнопку ниже.\n\n"
-                   "Если не спал(а) — напиши «Не спал».",
-        reply_markup=time_suggestions_keyboard
+        "Напиши время в формате ЧЧ:ММ или выбери кнопку ниже.\n\n"
+        "Если не спал(а) — напиши «Не спал».",
+        reply_markup=time_suggestions_keyboard,
     )
     await state.set_state(CheckinStates.sleep_time)
 
@@ -136,12 +136,12 @@ async def process_sleep_time(message: Message, state: FSMContext):
     if message.text.strip().lower() == "не спал":
         await state.update_data(
             sleep_time="00:00", wake_time="00:00",
-            sleep_duration=0, sleep_quality=0
+            sleep_duration=0, sleep_quality=0,
         )
         progress = get_progress_bar(3)
         await message.answer(
             progress + "Понял, вчера без сна.\n\nКакое у тебя настроение после сна?",
-            reply_markup=get_quality_inline()
+            reply_markup=get_mood_inline(),
         )
         await state.set_state(CheckinStates.mood)
         return
@@ -156,8 +156,8 @@ async def process_sleep_time(message: Message, state: FSMContext):
     progress = get_progress_bar(2)
     await message.answer(
         progress + "Во сколько ты вчера проснулся(лась)?\n"
-                   "Выбери кнопку или напиши время (например, 07:30).",
-        reply_markup=wake_time_suggestions_keyboard  # <-- НОВАЯ КЛАВИАТУРА
+        "Выбери кнопку или напиши время (например, 07:30).",
+        reply_markup=wake_time_suggestions_keyboard,
     )
     await state.set_state(CheckinStates.wake_time)
 
@@ -187,13 +187,13 @@ async def process_wake_time(message: Message, state: FSMContext):
     progress = get_progress_bar(3)
     await message.answer(
         progress + "Как ты оцениваешь качество сна?",
-        reply_markup=get_quality_inline()
+        reply_markup=get_quality_inline(),
     )
     await state.set_state(CheckinStates.sleep_quality)
 
 
 # ============================================================
-# ОБРАБОТЧИКИ INLINE-КНОПОК
+# INLINE-ОБРАБОТЧИКИ
 # ============================================================
 
 # --- СМЕНА ---
@@ -233,7 +233,7 @@ async def process_study_inline(callback: CallbackQuery, state: FSMContext):
 
 
 # --- КАЧЕСТВО СНА ---
-@router.callback_query(F.data.startswith("qual_"), CheckinStates.sleep_quality)
+@router.callback_query(F.data.startswith("ql_"), CheckinStates.sleep_quality)
 async def process_quality_inline(callback: CallbackQuery, state: FSMContext):
     val = int(callback.data.split("_")[1])
     await state.update_data(sleep_quality=val)
@@ -243,13 +243,13 @@ async def process_quality_inline(callback: CallbackQuery, state: FSMContext):
     progress = get_progress_bar(4)
     await callback.message.answer(
         progress + "Какое у тебя настроение после сна?",
-        reply_markup=get_quality_inline()
+        reply_markup=get_mood_inline(),
     )
     await state.set_state(CheckinStates.mood)
 
 
 # --- НАСТРОЕНИЕ ---
-@router.callback_query(F.data.startswith("qual_"), CheckinStates.mood)
+@router.callback_query(F.data.startswith("md_"), CheckinStates.mood)
 async def process_mood_inline(callback: CallbackQuery, state: FSMContext):
     val = int(callback.data.split("_")[1])
     await state.update_data(mood=val)
@@ -259,13 +259,13 @@ async def process_mood_inline(callback: CallbackQuery, state: FSMContext):
     progress = get_progress_bar(5)
     await callback.message.answer(
         progress + "Какой у тебя уровень энергии после сна?",
-        reply_markup=get_quality_inline()
+        reply_markup=get_energy_inline(),
     )
     await state.set_state(CheckinStates.energy)
 
 
 # --- ЭНЕРГИЯ ---
-@router.callback_query(F.data.startswith("qual_"), CheckinStates.energy)
+@router.callback_query(F.data.startswith("en_"), CheckinStates.energy)
 async def process_energy_inline(callback: CallbackQuery, state: FSMContext):
     val = int(callback.data.split("_")[1])
     await state.update_data(energy=val)
@@ -275,12 +275,12 @@ async def process_energy_inline(callback: CallbackQuery, state: FSMContext):
     progress = get_progress_bar(6)
     await callback.message.answer(
         progress + "Ты вчера спал(а) днём?",
-        reply_markup=get_yes_no_inline()
+        reply_markup=get_yes_no_inline(),
     )
     await state.set_state(CheckinStates.nap)
 
 
-# --- ДНЕВНОЙ СОН (Да/Нет) ---
+# --- ДНЕВНОЙ СОН ---
 @router.callback_query(F.data == "yes", CheckinStates.nap)
 async def process_nap_yes(callback: CallbackQuery, state: FSMContext):
     await state.update_data(nap_taken=1)
@@ -290,7 +290,7 @@ async def process_nap_yes(callback: CallbackQuery, state: FSMContext):
     progress = get_progress_bar(7)
     await callback.message.answer(
         progress + "Сколько примерно длился дневной сон?",
-        reply_markup=get_nap_duration_inline()
+        reply_markup=get_nap_duration_inline(),
     )
     await state.set_state(CheckinStates.nap_duration)
 
@@ -304,12 +304,11 @@ async def process_nap_no(callback: CallbackQuery, state: FSMContext):
     progress = get_progress_bar(8)
     await callback.message.answer(
         progress + "☕ Сколько порций кофеина ты выпил(а) вчера?",
-        reply_markup=get_caffeine_inline()
+        reply_markup=get_caffeine_inline(),
     )
     await state.set_state(CheckinStates.caffeine)
 
 
-# --- ДНЕВНОЙ СОН (Длительность) ---
 @router.callback_query(F.data.startswith("nap_"), CheckinStates.nap_duration)
 async def process_nap_duration_inline(callback: CallbackQuery, state: FSMContext):
     mapping = {"nap_30": "До 30 минут", "nap_60": "30–60 минут", "nap_more": "Больше часа"}
@@ -320,7 +319,7 @@ async def process_nap_duration_inline(callback: CallbackQuery, state: FSMContext
     progress = get_progress_bar(8)
     await callback.message.answer(
         progress + "☕ Сколько порций кофеина ты выпил(а) вчера?",
-        reply_markup=get_caffeine_inline()
+        reply_markup=get_caffeine_inline(),
     )
     await state.set_state(CheckinStates.caffeine)
 
@@ -339,7 +338,7 @@ async def process_caffeine_inline(callback: CallbackQuery, state: FSMContext):
         progress = get_progress_bar(10)
         await callback.message.answer(
             progress + "Сколько времени ты провёл(а) за экраном перед сном?",
-            reply_markup=get_screen_time_inline()
+            reply_markup=get_screen_time_inline(),
         )
         await state.set_state(CheckinStates.screen_time)
         return
@@ -347,7 +346,7 @@ async def process_caffeine_inline(callback: CallbackQuery, state: FSMContext):
     progress = get_progress_bar(9)
     await callback.message.answer(
         progress + "Во сколько была последняя чашка кофеина? (ЧЧ:ММ)",
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=ReplyKeyboardRemove(),
     )
     await state.set_state(CheckinStates.caffeine_time)
 
@@ -364,7 +363,7 @@ async def process_caffeine_time_text(message: Message, state: FSMContext):
     progress = get_progress_bar(10)
     await message.answer(
         progress + "Сколько времени ты провёл(а) за экраном перед сном?",
-        reply_markup=get_screen_time_inline()
+        reply_markup=get_screen_time_inline(),
     )
     await state.set_state(CheckinStates.screen_time)
 
@@ -381,7 +380,7 @@ async def process_screen_inline(callback: CallbackQuery, state: FSMContext):
     progress = get_progress_bar(11)
     await callback.message.answer(
         progress + "Какая физическая активность была вчера?",
-        reply_markup=get_activity_inline()
+        reply_markup=get_activity_inline(),
     )
     await state.set_state(CheckinStates.physical_activity)
 
@@ -398,13 +397,13 @@ async def process_activity_inline(callback: CallbackQuery, state: FSMContext):
     progress = get_progress_bar(12)
     await callback.message.answer(
         progress + "Какой у тебя был уровень стресса вчера?",
-        reply_markup=get_quality_inline()  # Используем 1-5
+        reply_markup=get_stress_inline(),
     )
     await state.set_state(CheckinStates.stress)
 
 
 # --- СТРЕСС И СОХРАНЕНИЕ ---
-@router.callback_query(F.data.startswith("qual_"), CheckinStates.stress)
+@router.callback_query(F.data.startswith("st_"), CheckinStates.stress)
 async def process_stress_inline(callback: CallbackQuery, state: FSMContext):
     val = int(callback.data.split("_")[1])
     await state.update_data(stress=val)
@@ -431,7 +430,7 @@ async def process_stress_inline(callback: CallbackQuery, state: FSMContext):
         physical_activity=data["physical_activity"],
         stress=data["stress"],
         shift_type=data.get("shift_type"),
-        study_load=data.get("study_load", 0)
+        study_load=data.get("study_load", 0),
     )
 
     await callback.message.answer(
@@ -442,10 +441,14 @@ async def process_stress_inline(callback: CallbackQuery, state: FSMContext):
         f"⚡ Энергия: {data['energy']}/5\n"
         f"😰 Стресс: {data['stress']}/5\n\n"
         "Спасибо! Данные будут использоваться для твоей статистики.",
-        reply_markup=main_keyboard
+        reply_markup=main_keyboard,
     )
     await state.clear()
 
+
+# ============================================================
+# ТЕСТОВЫЕ ДАННЫЕ
+# ============================================================
 
 @router.message(F.text == "/test30")
 async def create_educational_test_data(message: Message):
@@ -456,16 +459,13 @@ async def create_educational_test_data(message: Message):
     today = date.today()
     telegram_id = message.from_user.id
 
-    # Генерируем данные за 30 дней
     with SessionLocal() as session:
         for i in range(30):
             checkin_date = today - timedelta(days=30 - i)
 
-            # Логика: чередуем нагрузку и качество сна
-            # Дни с сильной нагрузкой (каждый 3-й день)
             if i % 3 == 0:
-                study_load = 2  # Сильная нагрузка
-                sleep_duration = round(random.uniform(5.5, 6.5), 1)  # Мало сна
+                study_load = 2
+                sleep_duration = round(random.uniform(5.5, 6.5), 1)
                 sleep_quality = random.randint(2, 3)
                 mood = random.randint(2, 3)
                 energy = random.randint(2, 3)
@@ -477,10 +477,8 @@ async def create_educational_test_data(message: Message):
                 shift_type = "Учёба: Сильная"
                 sleep_time = "02:00"
                 wake_time = "08:00"
-
-            # Дни со средней нагрузкой (каждый 3-й день)
             elif i % 3 == 1:
-                study_load = 1  # Средняя нагрузка
+                study_load = 1
                 sleep_duration = round(random.uniform(6.5, 7.5), 1)
                 sleep_quality = random.randint(3, 4)
                 mood = random.randint(3, 4)
@@ -493,10 +491,8 @@ async def create_educational_test_data(message: Message):
                 shift_type = "Учёба: Средняя"
                 sleep_time = "00:00"
                 wake_time = "07:30"
-
-            # Дни без учебы / выходные (каждый 3-й день)
             else:
-                study_load = 0  # Нет учебы
+                study_load = 0
                 sleep_duration = round(random.uniform(8.0, 9.0), 1)
                 sleep_quality = random.randint(4, 5)
                 mood = random.randint(4, 5)
@@ -510,7 +506,6 @@ async def create_educational_test_data(message: Message):
                 sleep_time = "23:00"
                 wake_time = "08:30"
 
-            # Проверяем, нет ли уже записи на этот день
             checkin = session.query(Checkin).filter_by(
                 telegram_id=telegram_id,
                 checkin_date=checkin_date,

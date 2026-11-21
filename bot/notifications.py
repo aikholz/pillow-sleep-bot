@@ -1,8 +1,14 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta, date
+
 from aiogram import Bot
-from bot.database.db import get_all_users, get_users_without_recent_checkin, get_checkins_for_period
+
+from bot.database.db import (
+    get_all_users,
+    get_users_without_recent_checkin,
+    get_checkins_for_period,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +64,14 @@ async def send_weekly_reports(bot: Bot):
             if len(rows) < 3:
                 continue
 
-            avg_sleep = sum(r[1] for r in rows) / len(rows)
-            avg_quality = sum(r[2] for r in rows) / len(rows)
+            sleeps = [r[1] for r in rows if r[1] is not None]
+            qualities = [r[2] for r in rows if r[2] is not None]
+
+            if not sleeps or not qualities:
+                continue
+
+            avg_sleep = sum(sleeps) / len(sleeps)
+            avg_quality = sum(qualities) / len(qualities)
 
             text = (
                 "📊 <b>Еженедельный отчет</b>\n\n"
@@ -68,8 +80,8 @@ async def send_weekly_reports(bot: Bot):
                 "Продолжай в том же духе!"
             )
             await bot.send_message(chat_id=user_id, text=text, parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Не удалось отправить weekly report {user_id}: {e}")
 
 
 def seconds_until_next_reminder() -> float:

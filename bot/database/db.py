@@ -1,7 +1,7 @@
 import os
 from datetime import date, timedelta
 from pathlib import Path
-
+from datetime import date, datetime, timedelta
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, Date, DateTime,
     UniqueConstraint, text, func,
@@ -38,7 +38,6 @@ Base = declarative_base()
 # -------------------------
 # Модели таблиц
 # -------------------------
-
 class User(Base):
     __tablename__ = "users"
 
@@ -48,12 +47,8 @@ class User(Base):
     age = Column(Integer, nullable=False)
     category = Column(String, nullable=False)
     schedule = Column(String, nullable=False)
-    created_at = Column(
-        DateTime,
-        server_default=text("CURRENT_TIMESTAMP"),
-    )
-
-
+    course_completed_at = Column(DateTime, nullable=True)  # <-- НОВОЕ
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
 class Checkin(Base):
     __tablename__ = "checkins"
 
@@ -125,6 +120,13 @@ def init_db():
             "study_load": "INTEGER",
             "status": "TEXT", # НОВОЕ
         }
+        if DATABASE_URL.startswith("sqlite") and "users" in existing_tables:
+            user_cols = {c["name"] for c in inspector.get_columns("users")}
+            with engine.begin() as connection:
+                if "course_completed_at" not in user_cols:
+                    connection.execute(
+                        text("ALTER TABLE users ADD COLUMN course_completed_at DATETIME")
+                    )
 
         with engine.begin() as connection:
             for column_name, column_type in migrations.items():
@@ -140,7 +142,18 @@ def init_db():
 # -------------------------
 # Пользователи
 # -------------------------
+def mark_course_completed(telegram_id: int):
+    with SessionLocal() as session:
+        user = session.query(User).filter_by(telegram_id=telegram_id).first()
+        if user and user.course_completed_at is None:
+            user.course_completed_at = datetime.utcnow()  # нужен import datetime
+            session.commit()
 
+
+def is_course_completed(telegram_id: int) -> bool:
+    with SessionLocal() as session:
+        user = session.query(User).filter_by(telegram_id=telegram_id).first()
+        return bool(user and user.course_completed_at)
 def add_user(telegram_id: int, name: str, age: int, category: str, schedule: str):
     with SessionLocal() as session:
         user = session.query(User).filter_by(telegram_id=telegram_id).first()

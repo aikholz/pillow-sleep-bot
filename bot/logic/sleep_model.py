@@ -717,3 +717,82 @@ def analyze_shift_insights(rows):
         lines.append("")  # Пустая строка для отступа
 
     return "\n".join(lines)
+# =========================================================
+# АНАЛИЗ ПО СМЕНАМ (≥2 вывода на смену)
+# =========================================================
+
+def analyze_shift_insights(rows):
+    """
+    Генерирует 2–3 текстовых вывода для каждого типа смены.
+    rows — из get_checkins_for_analysis (row[0] — сон, row[1] — качество,
+    row[4] — стресс, row[12] — тип смены).
+    """
+    from collections import defaultdict
+
+    groups = defaultdict(list)
+    for row in rows:
+        if len(row) > 12 and row[12] and row[0] is not None:
+            groups[row[12]].append({
+                "sleep": float(row[0]),
+                "quality": row[1],
+                "stress": row[4],
+            })
+
+    if len(groups) < 2:
+        return None
+
+    lines = ["🔄 АНАЛИЗ ПО ТВОИМ СМЕНАМ\n"]
+
+    for shift, data in groups.items():
+        if len(data) < 2:
+            continue
+
+        avg_sleep = sum(d["sleep"] for d in data) / len(data)
+        qual_vals = [d["quality"] for d in data if d["quality"] is not None]
+        avg_qual = sum(qual_vals) / len(qual_vals) if qual_vals else None
+
+        lines.append(f"📌 <b>{shift}</b> ({len(data)} дн.):")
+
+        # Вывод 1: продолжительность
+        if avg_sleep < 6.5:
+            lines.append(
+                f"• ⚠️ Средний сон всего {avg_sleep:.1f} ч — критически мало для восстановления."
+            )
+        elif avg_sleep < 7.5:
+            lines.append(
+                f"• 🟡 Сон в среднем {avg_sleep:.1f} ч — есть куда расти."
+            )
+        else:
+            lines.append(
+                f"• ✅ Сон в среднем {avg_sleep:.1f} ч — хорошая продолжительность."
+            )
+
+        # Вывод 2: качество
+        if avg_qual is not None:
+            if avg_qual < 3.0:
+                lines.append(
+                    f"• 📉 Качество низкое ({avg_qual:.1f}/5) — обрати внимание на условия отдыха."
+                )
+            elif avg_qual < 4.0:
+                lines.append(
+                    f"• 🙂 Качество среднее ({avg_qual:.1f}/5)."
+                )
+            else:
+                lines.append(
+                    f"• 👍 Качество высокое ({avg_qual:.1f}/5)."
+                )
+        else:
+            lines.append("• Качество в эти дни не оценивалось.")
+
+        # Вывод 3 (бонусный): стресс, если есть ≥2 значений
+        stress_vals = [d["stress"] for d in data if d["stress"] is not None]
+        if len(stress_vals) >= 2:
+            avg_stress = sum(stress_vals) / len(stress_vals)
+            if avg_stress >= 4.0:
+                lines.append(f"• 😰 Высокий стресс ({avg_stress:.1f}/5) — попробуй вечерние практики.")
+            elif avg_stress <= 2.0:
+                lines.append(f"• 🧘 Низкий стресс ({avg_stress:.1f}/5) — хороший фон.")
+
+        lines.append("")
+
+    return "\n".join(lines).strip()

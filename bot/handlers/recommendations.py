@@ -261,3 +261,19 @@ async def recommendations_handler(message: Message):
         text += "\n⚠️ Это советы на основе твоих же данных. Они не заменяют консультацию врача."
 
     await message.answer(text)
+    # В конце, вместо await message.answer(text):
+    lines = text.strip().split("\n")
+    numbered = []
+    n = 1
+    for line in lines:
+        s = line.strip()
+        if not s:
+            continue
+        if s.startswith(("💡", "⚠️", "📌")) or s.endswith(":"):
+            numbered.append(s)
+        else:
+            numbered.append(f"{n}. {s}")
+            n += 1
+    final_text = "💡 ТВОИ ПЕРСОНАЛЬНЫЕ РЕКОМЕНДАЦИИ\n\n" + "\n".join(numbered)
+    final_text += "\n\n⚠️ Советы основаны на твоих данных и не заменяют консультацию врача."
+    await message.answer(final_text)

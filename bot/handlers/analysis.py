@@ -192,7 +192,10 @@ async def show_analysis(message: Message):
                 report += f"• {shift}: {average(vals):.1f} ч\n"
     elif "Сменный" in schedule or "Ночной" in schedule:
         report += "\n🔄 Для анализа по сменам нужно больше дней. Заполняй чек-ин в разные смены.\n"
-
+    from bot.logic.sleep_model import analyze_shift_insights
+    shift_text = analyze_shift_insights(rows)
+    if shift_text:
+        report += "\n" + shift_text
     # --- КОФЕИН И ВРЕМЯ ЗАСЫПАНИЯ ---
     sleep_with_caf, sleep_without_caf = [], []
     for row in rows:

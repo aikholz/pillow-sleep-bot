@@ -206,3 +206,126 @@ def make_shift_chart(rows):
     ax.spines['right'].set_visible(False)
 
     return _save_to_tempfile(fig)
+# ============================================================
+# ГРАФИК: НОЧНЫЕ СМЕНЫ vs ОСТАЛЬНЫЕ ДНИ
+# ============================================================
+
+def make_night_shift_chart(rows):
+    """
+    Сравнивает средний сон и качество в дни «после ночи» и «без ночи».
+    rows — из get_checkins_for_analysis (row[0]=сон, row[1]=качество, row[12]=тип смены).
+    """
+    night_sleep, night_qual = [], []
+    other_sleep, other_qual = [], []
+    for r in rows:
+        if r[0] is None:
+            continue
+        sleep = float(r[0])
+        qual = r[1]
+        shift = r[12] if len(r) > 12 else None
+        if shift == "Ночь":
+            night_sleep.append(sleep)
+            if qual is not None:
+                night_qual.append(qual)
+        else:
+            other_sleep.append(sleep)
+            if qual is not None:
+                other_qual.append(qual)
+
+    if not night_sleep or not other_sleep:
+        return None
+
+    labels = ["После ночи", "Без ночи"]
+    sleep_vals = [sum(night_sleep)/len(night_sleep), sum(other_sleep)/len(other_sleep)]
+    qual_vals = [
+        sum(night_qual)/len(night_qual) if night_qual else 0,
+        sum(other_qual)/len(other_qual) if other_qual else 0,
+    ]
+
+    fig, ax1 = plt.subplots(figsize=(8, 4.5))
+    x = np.arange(len(labels))
+    width = 0.35
+
+    b1 = ax1.bar(x - width/2, sleep_vals, width, color="#6366F1", label="Сон, ч", zorder=3)
+    for bar, val in zip(b1, sleep_vals):
+        ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1,
+                 f"{val:.1f}", ha="center", fontweight="bold")
+
+    ax2 = ax1.twinx()
+    b2 = ax2.bar(x + width/2, qual_vals, width, color="#F59E0B", label="Качество /5", zorder=3)
+    for bar, val in zip(b2, qual_vals):
+        if val > 0:
+            ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1,
+                     f"{val:.1f}", ha="center", fontweight="bold")
+
+    ax1.set_xticks(x)
+    ax1.set_xticklabels(labels, fontsize=12, fontweight="bold")
+    ax1.set_ylabel("Сон (часы)", color="#6366F1")
+    ax2.set_ylabel("Качество (1–5)", color="#F59E0B")
+    ax2.set_ylim(0, 5.5)
+    ax1.set_ylim(0, max(sleep_vals) + 1.5)
+    ax1.set_title("Ночные смены vs остальные дни", fontsize=14, fontweight="bold", pad=15)
+    ax1.grid(True, axis="y", alpha=0.15)
+    ax1.spines['top'].set_visible(False)
+    ax2.spines['top'].set_visible(False)
+
+    return _save_to_tempfile(fig)
+
+
+# ============================================================
+# ГРАФИК: СТАБИЛЬНОСТЬ РЕЖИМА (офисный / свободный)
+# ============================================================
+
+def make_schedule_stability_chart(rows, category: str):
+    """
+    Для офисного/свободного графика: распределение времени отхода ко сну
+    по дням недели (будни vs выходные) + линия «якоря» (медиана).
+    """
+    from statistics import median
+    from datetime import date as _date
+
+    category = category or ""
+    is_free = ("Свободный" in category)
+
+    pts = []  # (день_недели_0..6, минуты_от_полуночи, тип)
+    for r in rows:
+        st = r[11] if len(r) > 11 else None
+        if not st:
+            continue
+        try:
+            h, m = map(int, st.split(":"))
+        except Exception:
+            continue
+        mins = h * 60 + m
+        if h < 12:
+            mins += 24 * 60
+        # День недели у нас есть только в get_checkins_with_dates.
+        # Здесь приблизим: будем строить по всем точкам, помечая «поздние» (>01:00).
+        pts.append(mins)
+
+    if len(pts) < 5:
+        return None
+
+    med = median(pts)
+
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    idx = list(range(1, len(pts) + 1))
+    colors = ["#EF4444" if p >= 24*60 + 60 else "#3B82F6" for p in pts]
+    ax.scatter(idx, pts, c=colors, s=70, zorder=3, alpha=0.85)
+    ax.axhline(med, color="#10B981", linestyle="--", linewidth=2,
+               label=f"Медиана: {int(med//60)%24:02d}:{int(med%60):02d}", zorder=2)
+
+    # Часовая сетка (ночные часы)
+    ticks = list(range(20, 28))
+    ax.set_yticks([t * 60 for t in ticks])
+    ax.set_yticklabels([f"{t % 24:02d}:00" for t in ticks])
+    ax.set_xlabel("День наблюдения")
+    ax.set_ylabel("Время отхода ко сну")
+    title = "Стабильность режима (свободный график)" if is_free else "Стабильность режима (офисный график)"
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=15)
+    ax.grid(True, axis="y", linestyle="--", alpha=0.25)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.legend(frameon=False, loc="lower right")
+
+    return _save_to_tempfile(fig)

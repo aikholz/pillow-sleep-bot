@@ -1,7 +1,7 @@
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta     # ← добавили datetime (лечим баг с utcnow)
 from pathlib import Path
-from datetime import date, datetime, timedelta
+
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, Date, DateTime,
     UniqueConstraint, text, func,
@@ -10,15 +10,26 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy import inspect
 
 # ============================================================
-# ПОДКЛЮЧЕНИЕ К БАЗЕ ДАННЫХ (для Bothost)
+# ПОДКЛЮЧЕНИЕ К БАЗЕ ДАННЫХ
+# ============================================================
+# Приоритет:
+#   1) DATABASE_URL  (например, postgresql+psycopg://user:pass@host:5432/db)
+#   2) DATA_DIR      (SQLite-файл в указанной папке; по умолчанию /app/data)
+#   3) локальный ./data
 # ============================================================
 
-DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-DB_PATH = DATA_DIR / "sleepy.db"
-DATABASE_URL = f"sqlite:///{DB_PATH.as_posix()}"
-connect_args = {"check_same_thread": False}
+if DATABASE_URL:
+    # PostgreSQL (production) или иная внешняя БД
+    connect_args = {}   # для psycopg не нужен check_same_thread
+else:
+    # SQLite (по умолчанию)
+    DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    DB_PATH = DATA_DIR / "sleepy.db"
+    DATABASE_URL = f"sqlite:///{DB_PATH.as_posix()}"
+    connect_args = {"check_same_thread": False}
 
 engine = create_engine(
     DATABASE_URL,

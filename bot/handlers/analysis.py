@@ -1,8 +1,11 @@
 import math
 from datetime import datetime
+
 from aiogram import F, Router
 from aiogram.types import Message
+
 from bot.database.db import get_checkins_for_analysis, get_user
+from bot.logic.sleep_model import analyze_shift_insights, analyze_schedule_insights
 
 router = Router()
 
@@ -192,10 +195,17 @@ async def show_analysis(message: Message):
                 report += f"• {shift}: {average(vals):.1f} ч\n"
     elif "Сменный" in schedule or "Ночной" in schedule:
         report += "\n🔄 Для анализа по сменам нужно больше дней. Заполняй чек-ин в разные смены.\n"
-    from bot.logic.sleep_model import analyze_shift_insights
+
+    # --- АНАЛИЗ ПО СМЕНАМ (2–3 вывода на каждую смену) ---
     shift_text = analyze_shift_insights(rows)
     if shift_text:
         report += "\n" + shift_text
+
+    # --- АНАЛИЗ ПО ТИПУ ГРАФИКА (ночной / офисный / свободный) ---
+    schedule_text = analyze_schedule_insights(rows, category, schedule)
+    if schedule_text:
+        report += "\n\n" + schedule_text
+
     # --- КОФЕИН И ВРЕМЯ ЗАСЫПАНИЯ ---
     sleep_with_caf, sleep_without_caf = [], []
     for row in rows:
@@ -231,14 +241,7 @@ async def show_analysis(message: Message):
             f"\n☕ В дни с кофеином ты засыпаешь в среднем в {h_c:02d}:{m_c:02d}, "
             f"а без него — в {h_n:02d}:{m_n:02d}.\n"
         )
-    # В analysis.py:
-    from bot.logic.sleep_model import analyze_shift_insights
 
-    # ... внутри show_analysis, после блока "ОТЛИЧИЯ ПО ГРАФИКУ" ...
-    shift_insights_text = analyze_shift_insights(rows)
-    if shift_insights_text:
-        report += "\n" + shift_insights_text
-    # ...
     # --- КОРРЕЛЯЦИИ ---
     pairs = [
         (correlation(caf, sleep), "☕→😴 Чем больше кофеина, тем дольше сон.",

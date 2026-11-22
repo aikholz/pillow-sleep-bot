@@ -16,6 +16,8 @@ from bot.logic.charts import (
     make_circadian_chart,
     make_progress_chart,
     make_shift_chart,
+    make_night_shift_chart,          # новое
+    make_schedule_stability_chart,
 )
 from bot.logic.sleep_model import (
     analyze_circadian,
@@ -89,6 +91,34 @@ async def show_charts(message: Message):
                 parse_mode="HTML",
             )
             os.remove(path4)
+    # ГРАФИК: Ночные смены vs остальные дни (для ночного/сменного)
+    if ("Ночной" in category) or ("Ночной" in schedule) or ("Сменный" in category):
+        path_night = make_night_shift_chart(all_rows)
+        if path_night:
+            await message.answer_photo(
+                FSInputFile(path_night, filename="night_shift.png"),
+                caption=(
+                    "🌙 <b>Ночные смены vs остальные дни</b>\n\n"
+                    "Сравнение среднего сна и качества: после ночи и без неё."
+                ),
+                parse_mode="HTML",
+            )
+            os.remove(path_night)
+
+    # ГРАФИК: Стабильность режима (офисный / свободный)
+    if ("Офисный" in category) or ("Свободный" in category) or ("Свободный" in schedule):
+        path_stab = make_schedule_stability_chart(all_rows, category)
+        if path_stab:
+            await message.answer_photo(
+                FSInputFile(path_stab, filename="stability.png"),
+                caption=(
+                    "🕐 <b>Стабильность режима</b>\n\n"
+                    "Каждая точка — время отхода ко сну. "
+                    "Красные точки — после 01:00 (позднее засыпание)."
+                ),
+                parse_mode="HTML",
+            )
+            os.remove(path_stab)
 
     # ГРАФИК 3: Циркадный ритм
     circ = analyze_circadian(period_rows)

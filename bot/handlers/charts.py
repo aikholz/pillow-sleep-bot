@@ -16,7 +16,7 @@ from bot.logic.charts import (
     make_circadian_chart,
     make_progress_chart,
     make_shift_chart,
-    make_night_shift_chart,          # новое
+    make_night_shift_chart,
     make_schedule_stability_chart,
 )
 from bot.logic.sleep_model import (
@@ -36,6 +36,8 @@ async def show_charts(message: Message):
         return
 
     telegram_id, name, age, category, schedule = user
+    category = category or ""
+    schedule = schedule or ""
 
     period_start = date.today() - timedelta(days=30)
     period_end = date.today()
@@ -54,7 +56,7 @@ async def show_charts(message: Message):
         )
         return
 
-    # ГРАФИК 1: Сон по дням
+    # ---------- ГРАФИК 1: Сон по дням ----------
     path1 = make_sleep_by_day_chart(period_rows)
     if path1:
         await message.answer_photo(
@@ -66,7 +68,7 @@ async def show_charts(message: Message):
 
     all_rows = get_checkins_for_analysis(telegram_id)
 
-    # ГРАФИК 2 и 4: Учебная нагрузка и Время учебы
+    # ---------- ГРАФИКИ: Учебная нагрузка и время учебы ----------
     if "Учебный" in category or "Учебный" in schedule:
         path2 = make_study_load_chart(all_rows)
         if path2:
@@ -91,7 +93,8 @@ async def show_charts(message: Message):
                 parse_mode="HTML",
             )
             os.remove(path4)
-    # ГРАФИК: Ночные смены vs остальные дни (для ночного/сменного)
+
+    # ---------- ГРАФИК: Ночные смены vs остальные дни ----------
     if ("Ночной" in category) or ("Ночной" in schedule) or ("Сменный" in category):
         path_night = make_night_shift_chart(all_rows)
         if path_night:
@@ -105,7 +108,7 @@ async def show_charts(message: Message):
             )
             os.remove(path_night)
 
-    # ГРАФИК: Стабильность режима (офисный / свободный)
+    # ---------- ГРАФИК: Стабильность режима (офис/фриланс) ----------
     if ("Офисный" in category) or ("Свободный" in category) or ("Свободный" in schedule):
         path_stab = make_schedule_stability_chart(all_rows, category)
         if path_stab:
@@ -120,7 +123,7 @@ async def show_charts(message: Message):
             )
             os.remove(path_stab)
 
-    # ГРАФИК 3: Циркадный ритм
+    # ---------- ГРАФИК: Циркадный ритм ----------
     circ = analyze_circadian(period_rows)
     if circ:
         path3 = make_circadian_chart(circ)
@@ -133,7 +136,7 @@ async def show_charts(message: Message):
             )
             os.remove(path3)
 
-    # ГРАФИК 5: Динамика прогресса
+    # ---------- ГРАФИК: Динамика прогресса ----------
     path_progress = make_progress_chart(period_rows)
     if path_progress:
         await message.answer_photo(
@@ -146,19 +149,17 @@ async def show_charts(message: Message):
         )
         os.remove(path_progress)
 
-    await message.answer(
-        "📌 Это твои графики за последние 30 дней. "
-        "Чем больше дней — тем точнее анализ."
-    )
-    # --------------------------------------------------------
-    # ГРАФИК 4: Смены (только если есть данные)
-    # --------------------------------------------------------
-    shift_chart = make_shift_chart(all_rows)  # <-- Передаем all_rows
+    # ---------- ГРАФИК: Смены ----------
+    shift_chart = make_shift_chart(all_rows)
     if shift_chart:
         await message.answer_photo(
             FSInputFile(shift_chart, filename="shift_sleep.png"),
             caption="🔄 <b>Сон по сменам</b>\n\nПоказывает, как ты спишь после разных типов смен.",
             parse_mode="HTML",
         )
-        import os
         os.remove(shift_chart)
+
+    await message.answer(
+        "📌 Это твои графики за последние 30 дней. "
+        "Чем больше дней — тем точнее анализ."
+    )

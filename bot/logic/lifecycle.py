@@ -83,14 +83,10 @@ def _date_for_index(telegram_id, index_in_filtered_rows):
 
 
 def stabilization_countdown(telegram_id):
-    """
-    Возвращает (days_left, total_days) если в stabilizing, иначе None.
-    """
     status = evaluate_progress(telegram_id)
-    if status not in ("stabilizing", "completed"):
-        return None
-    user = get_user(telegram_id)
-    if not user:
+    if status == "completed":
+        return None  # <-- больше нечего отсчитывать
+    if status != "stabilizing":
         return None
     _, name, age, category, schedule = user
     rows = get_checkins_for_analysis(telegram_id)

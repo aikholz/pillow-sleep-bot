@@ -6,7 +6,6 @@ from aiogram.types import Message
 
 from bot.database.db import get_checkins_for_analysis, get_user
 from bot.logic.sleep_model import analyze_shift_insights, analyze_schedule_insights
-
 router = Router()
 
 

@@ -48,8 +48,13 @@ async def delete_previous_msg(callback: CallbackQuery):
 
 @router.message(F.text == "😴 Мой сон")
 async def start_checkin(message: Message, state: FSMContext):
-    yesterday = str(date.today() - timedelta(days=1))
+    current = await state.get_state()
+    if current and current != CheckinStates.confirm_overwrite.state:
+        # Пользователь уже в середине чек-ина — не сбиваем
+        await message.answer("Ты уже заполняешь чек-ин. Продолжай по шагам.")
+        return
 
+    yesterday = str(date.today() - timedelta(days=1))
     if has_checkin_for_date(message.from_user.id, yesterday):
         await message.answer(
             "📌 Ты уже заполнял(а) чек-ин за вчера.\n\nХочешь перезаписать данные?",
@@ -58,13 +63,15 @@ async def start_checkin(message: Message, state: FSMContext):
         await state.set_state(CheckinStates.confirm_overwrite)
         return
 
+    await state.clear()
     await proceed_checkin(message, state)
-
 
 @router.callback_query(F.data == "overwrite_yes", CheckinStates.confirm_overwrite)
 async def confirm_overwrite_yes(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await delete_previous_msg(callback)
+    # Сбрасываем состояние, чтобы начать чек-ин с чистого листа
+    await state.clear()
     await proceed_checkin(callback.message, state)
 
 
@@ -72,9 +79,12 @@ async def confirm_overwrite_yes(callback: CallbackQuery, state: FSMContext):
 async def confirm_overwrite_no(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await delete_previous_msg(callback)
-    await callback.message.answer("Хорошо, оставляем старые данные.", reply_markup=main_keyboard)
     await state.clear()
-
+    await callback.message.answer(
+        "Хорошо, оставляем старые данные.\n"
+        "Когда захочешь заполнить новый чек-ин — нажми «😴 Мой сон».",
+        reply_markup=main_keyboard,
+    )
 
 async def proceed_checkin(message: Message, state: FSMContext):
     user = get_user(message.from_user.id)
@@ -462,9 +472,6 @@ async def process_stress_inline(callback: CallbackQuery, state: FSMContext):
             extra_parts.append(
                 f"🔒 Фаза стабилизации: осталось {left} из {total} дней. Продолжай держать привычки."
             )
-        else:
-            extra_parts.append("🎉 Стабилизация завершена — курс закрыт!")
-
     # 3 релевантные подсказки
     ctx = build_context(callback.from_user.id, rows)
     tips = select_tips(ctx, limit=3)
@@ -477,12 +484,12 @@ async def process_stress_inline(callback: CallbackQuery, state: FSMContext):
     if extra_parts:
         await callback.message.answer("\n\n".join(extra_parts))
 
-    # Однократное поздравление по завершении
+    # Однократное поздравление по завершении курса
     if status == "completed" and not is_course_completed(callback.from_user.id):
         mark_course_completed(callback.from_user.id)
         await callback.message.answer(
             "🎉 Поздравляем — курс полностью завершён!\n"
-            "Результат закреплён. Можешь продолжать вести дневник для поддержки."
+            "Результат закреплён. Продолжай вести дневник, чтобы держать форму."
         )
 
 

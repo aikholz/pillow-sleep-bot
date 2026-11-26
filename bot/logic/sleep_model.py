@@ -797,167 +797,90 @@ def analyze_shift_insights(rows):
 
     return "\n".join(lines).strip()
 # =========================================================
-# АНАЛИЗ ПО ТИПУ ГРАФИКА (ночной / офисный / свободный)
+# АНАЛИЗ ПО ТИПУ ГРАФИКА (ночной / офисный / свободный и т.д.)
 # =========================================================
 
-def analyze_schedule_insights(rows, category: str, schedule: str) -> str | None:
+def analyze_schedule_insights(rows, category, schedule):
     """
-    Даёт 2–4 текстовых вывода, специфичных для графика:
-      - Ночной:     сравнение дней «после ночи» vs «без ночи» (сон, качество, стресс),
-                    плюс учёт дневного сна как части суток.
-      - Офисный:    стабильность режима (std по времени отхода/подъёма),
-                    соц. джетлаг, влияние экрана.
-      - Свободный:  вариативность времени отхода (std), частота поздних засыпаний,
-                    «плавающий» ритм.
-    Возвращает текст или None, если данных мало.
+    Даёт 2–3 вдумчивых вывода под конкретный тип графика.
+    rows — из get_checkins_for_analysis.
     """
-    from statistics import median, pstdev
-    from collections import defaultdict
-
-    category = category or ""
-    schedule = schedule or ""
-
-    if len(rows) < 7:
+    if not rows:
         return None
 
-    is_night = ("Ночной" in category) or ("Ночной" in schedule) or ("ночной" in category.lower())
-    is_office = "Офисный" in category
-    is_free = ("Свободный" in category) or ("Свободный" in schedule)
+    cat = (category or "").lower()
+    sch = (schedule or "").lower()
+    is_night = "ночной" in cat or "ночной" in sch
+    is_shift = "сменный" in cat or "сменный" in sch
+    is_study = "учебный" in cat or "учебный" in sch
+    is_office = "офисный" in cat or "умственный" in cat
+    is_physical = "физический" in cat
+    is_free = "свободный" in cat or "фриланс" in cat
 
-    if not (is_night or is_office or is_free):
-        return None
+    lines = ["🎯 АНАЛИЗ ПО ТВОЕМУ ГРАФИКУ"]
 
-    lines: list[str] = []
-
-    # ---------------- НОЧНОЙ ГРАФИК ----------------
+    # --- НОЧНОЙ ГРАФИК ---
     if is_night:
-        night_rows, day_rows = [], []
+        naps = [r for r in rows if r[9] and r[10]]
+        night_days = [r for r in rows if r[12] == "Ночь"]
+        if naps:
+            avg_nap = sum(nap_to_number(r[10]) for r in naps) / len(naps)
+            lines.append(f"🌙 Дневной сон — часть твоего восстановления: в среднем {avg_nap:.1f} ч ({len(naps)} дн.).")
+        if night_days:
+            avg_sleep_night = sum(float(r[0]) for r in night_days if r[0]) / len(night_days)
+            lines.append(f"🌃 После ночных смен ты спишь в среднем {avg_sleep_night:.1f} ч. Постарайся добавить +1 ч днём, если меньше 6.")
+        lines.append("💡 Старайся ложиться в одно и то же время даже в выходные — это снижает «социальный джетлаг».")
+
+    # --- СМЕННЫЙ ГРАФИК ---
+    elif is_shift:
+        shifts = {}
         for r in rows:
-            if r[0] is None:
-                continue
-            shift = r[12] if len(r) > 12 else None
-            if shift == "Ночь":
-                night_rows.append(r)
+            if r[12] and r[0]:
+                shifts.setdefault(r[12], []).append(float(r[0]))
+        if len(shifts) >= 2:
+            worst = min(shifts, key=lambda k: sum(shifts[k]) / len(shifts[k]))
+            best = max(shifts, key=lambda k: sum(shifts[k]) / len(shifts[k]))
+            lines.append(f"🔄 Самая тяжёлая смена — «{worst}» (в среднем {sum(shifts[worst])/len(shifts[worst]):.1f} ч).")
+            lines.append(f"✅ Лучше всего ты восстанавливаешься после «{best}» ({sum(shifts[best])/len(shifts[best]):.1f} ч).")
+        lines.append("💡 В день перед тяжёлой сменой старайся лечь на 30 минут раньше.")
+
+    # --- УЧЕБНЫЙ ГРАФИК ---
+    elif is_study:
+        heavy = [float(r[0]) for r in rows if len(r) > 13 and r[13] == 2 and r[0]]
+        light = [float(r[0]) for r in rows if len(r) > 13 and r[13] == 0 and r[0]]
+        if heavy and light:
+            diff = sum(light)/len(light) - sum(heavy)/len(heavy)
+            if diff > 0.5:
+                lines.append(f"📚 При сильной нагрузке ты спишь на {diff:.1f} ч меньше, чем без неё.")
             else:
-                day_rows.append(r)
+                lines.append("📚 Учебная нагрузка почти не влияет на твой сон — хороший баланс.")
+        lines.append("💡 В сессию ставь «сон-якорь»: не позже 01:00 в постель, даже если много заданий.")
 
-        if night_rows:
-            n_sleep = [float(r[0]) for r in night_rows if r[0] is not None]
-            n_qual = [r[1] for r in night_rows if r[1] is not None]
-            n_stress = [r[4] for r in night_rows if r[4] is not None]
-            # Дневной сон как часть суток
-            n_nap = [1 if (len(r) > 9 and r[9]) else 0 for r in night_rows]
+    # --- ОФИСНЫЙ / УМСТВЕННЫЙ ---
+    elif is_office:
+        avg_act = sum(activity_to_number(r[8]) for r in rows) / len(rows)
+        if avg_act < 1.5:
+            lines.append(f"🧑‍💻 Твоя активность в среднем {avg_act:.1f}/3 — низкая. Добавь прогулку днём.")
+        else:
+            lines.append(f"🏃 Хорошая активность ({avg_act:.1f}/3) — это помогает умственному восстановлению.")
+        lines.append("💡 После 21:00 — минимум рабочих сообщений: мозгу нужно «остыть».")
 
-            lines.append(
-                f"🌙 После ночных смен ({len(night_rows)} дн.):\n"
-                f"• средний сон {sum(n_sleep)/len(n_sleep):.1f} ч"
-                + (f", дневной сон был в {sum(n_nap)/len(n_nap)*100:.0f}% дней" if n_nap else "")
-                + (f";\n• качество {sum(n_qual)/len(n_qual):.1f}/5" if n_qual else "")
-                + (f"; стресс {sum(n_stress)/len(n_stress):.1f}/5." if n_stress else ".")
-            )
+    # --- ФИЗИЧЕСКИЙ ТРУД ---
+    elif is_physical:
+        lines.append("🏃 При физическом труде сон — главный инструмент восстановления мышц.")
+        high_stress_days = sum(1 for r in rows if (r[4] or 0) >= 4)
+        if high_stress_days >= 2:
+            lines.append(f"😰 У тебя {high_stress_days} дней с высоким стрессом — добавь растяжку или контрастный душ вечером.")
+        lines.append("💡 Заканчивай тяжёлые тренировки за 3 часа до сна.")
 
-            if day_rows:
-                d_sleep = [float(r[0]) for r in day_rows if r[0] is not None]
-                d_qual = [r[1] for r in day_rows if r[1] is not None]
-                diff_sleep = (sum(d_sleep)/len(d_sleep)) - (sum(n_sleep)/len(n_sleep))
-                if abs(diff_sleep) >= 0.5:
-                    word = "больше" if diff_sleep > 0 else "меньше"
-                    lines.append(
-                        f"• В дни без ночной смены сон в среднем на "
-                        f"{abs(diff_sleep):.1f} ч {word}."
-                    )
-                if d_qual and n_qual:
-                    dq = sum(d_qual)/len(d_qual)
-                    nq = sum(n_qual)/len(n_qual)
-                    if abs(dq - nq) >= 0.4:
-                        lines.append(
-                            f"• Качество после ночи {'ниже' if nq < dq else 'выше'} "
-                            f"на {abs(dq-nq):.1f} балла."
-                        )
+    # --- СВОБОДНЫЙ / ФРИЛАНС ---
+    elif is_free:
+        lines.append("🎨 Свободный график — главный враг циркадных ритмов, если нет «якоря».")
+        circ = analyze_circadian(rows)
+        if circ and circ["social_jetlag_hours"] > 1.0:
+            lines.append(f"🕐 Социальный джетлаг: {circ['social_jetlag_hours']:.1f} ч. Стабилизируй подъём.")
+        lines.append("💡 Привяжи сон к фиксированному подъёму — это важнее фиксированного засыпания.")
 
-    # ---------------- ОФИСНЫЙ ГРАФИК ----------------
-    if is_office:
-        def _mins(hhmm):
-            if not hhmm: return None
-            try:
-                h, m = map(int, hhmm.split(":"));
-                if h < 12: h += 24
-                return h*60 + m
-            except Exception:
-                return None
-
-        sleeps_t = [m for r in rows if (m := _mins(r[11] if len(r) > 11 else None)) is not None]
-        wakes_t  = [m for r in rows if (m := _mins((r[12] if len(r) > 12 else None) or None)) is not None
-                    if m is not None]
-
-        # r[12] — shift_type, а не wake_time; wake_time в get_checkins_for_analysis отсутствует.
-        # Поэтому стабильность считаем только по времени отхода.
-        if len(sleeps_t) >= 5:
-            spread = pstdev(sleeps_t) / 60  # часы
-            med = median(sleeps_t)
-            hh, mm = int(med // 60) % 24, int(med % 60)
-            if spread < 0.5:
-                stability = "стабильный"
-            elif spread < 1.0:
-                stability = "умеренно стабильный"
-            else:
-                stability = "нестабильный"
-
-            lines.append(
-                f"🧑‍💻 Офисный график ({len(sleeps_t)} дн.):\n"
-                f"• медиана отхода ко сну — {hh:02d}:{mm:02d}, "
-                f"разброс ±{spread*60:.0f} мин ({stability} режим)."
-            )
-            if spread >= 1.0:
-                lines.append(
-                    "• Разброс больше часа — циркадным ритмам сложно "
-                    "закрепиться. Помогает фиксированное время подъёма."
-                )
-
-        # Экран
-        high_screen = sum(1 for r in rows if len(r) > 7 and r[7] == "Больше часа")
-        low_qual = sum(1 for r in rows if len(r) > 1 and (r[1] or 5) <= 2)
-        if high_screen >= 3 and low_qual >= 2:
-            lines.append(
-                f"• В {high_screen} днях экран перед сном был >1 ч, "
-                f"и в {low_qual} днях качество сна ≤2/5 — вероятная связь."
-            )
-
-    # ---------------- СВОБОДНЫЙ ГРАФИК ----------------
-    if is_free:
-        def _mins2(hhmm):
-            if not hhmm: return None
-            try:
-                h, m = map(int, hhmm.split(":"))
-                if h < 12: h += 24
-                return h*60 + m
-            except Exception:
-                return None
-
-        sleeps_t = [m for r in rows if (m := _mins2(r[11] if len(r) > 11 else None)) is not None]
-        if len(sleeps_t) >= 5:
-            spread = pstdev(sleeps_t) / 60
-            late = sum(1 for m in sleeps_t if m >= 24*60 + 60)  # после 01:00
-            med = median(sleeps_t)
-            hh, mm = int(med // 60) % 24, int(med % 60)
-
-            lines.append(
-                f"🎨 Свободный график ({len(sleeps_t)} дн.):\n"
-                f"• медиана отхода ко сну — {hh:02d}:{mm:02d}, "
-                f"разброс ±{spread*60:.0f} мин."
-            )
-            if spread >= 1.5:
-                lines.append(
-                    "• Сильно «плавающий» ритм (>1.5 ч). "
-                    "Попробуй задать «якорь» — одно и то же время подъёма."
-                )
-            if late >= 3:
-                lines.append(
-                    f"• {late} раз(а) засыпал(а) после 01:00 — "
-                    "это сдвигает фазу сна и ухудшает утреннее самочувствие."
-                )
-
-    if not lines:
+    if len(lines) == 1:
         return None
-
-    return "🗓 АНАЛИЗ ПО ТВОЕМУ ГРАФИКУ\n\n" + "\n".join(lines)
+    return "\n".join(lines)

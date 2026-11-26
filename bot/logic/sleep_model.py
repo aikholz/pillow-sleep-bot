@@ -751,7 +751,7 @@ def analyze_shift_insights(rows):
         qual_vals = [d["quality"] for d in data if d["quality"] is not None]
         avg_qual = sum(qual_vals) / len(qual_vals) if qual_vals else None
 
-        lines.append(f"📌 <b>{shift}</b> ({len(data)} дн.):")
+        lines.append(f"📌 {shift} ({len(data)} дн.):")
 
         # Вывод 1: продолжительность
         if avg_sleep < 6.5:

@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from bot.database.db import (
     add_checkin, has_checkin_for_date, get_user,
@@ -50,7 +51,6 @@ async def delete_previous_msg(callback: CallbackQuery):
 async def start_checkin(message: Message, state: FSMContext):
     current = await state.get_state()
     if current and current != CheckinStates.confirm_overwrite.state:
-        # Пользователь уже в середине чек-ина — не сбиваем
         await message.answer("Ты уже заполняешь чек-ин. Продолжай по шагам.")
         return
 
@@ -64,17 +64,46 @@ async def start_checkin(message: Message, state: FSMContext):
         return
 
     await state.clear()
-    await proceed_checkin(message, state)
+    await _start_checkin_flow(message, state, message.from_user.id)
+
+
 @router.callback_query(F.data == "overwrite_yes")
 async def confirm_overwrite_yes(callback: CallbackQuery, state: FSMContext):
+    """Хендлер без привязки к состоянию — срабатывает всегда, если пришёл callback."""
     await callback.answer()
-    await delete_previous_msg(callback)
+
+    try:
+        await callback.message.edit_text("🔄 Начинаем новый чек-ин…")
+    except Exception:
+        # если не получилось отредактировать (например, старое сообщение удалено) — просто шлём новое
+        try:
+            await callback.message.answer("🔄 Начинаем новый чек-ин…")
+        except Exception as e:
+            logging.warning(f"overwrite_yes: не удалось отправить сообщение: {e}")
+            return
+
     await state.clear()
-    await proceed_checkin_from_callback(callback, state)
-async def proceed_checkin_from_callback(callback: CallbackQuery, state: FSMContext):
-    user = get_user(callback.from_user.id)
+    await _start_checkin_flow(callback.message, state, callback.from_user.id)
+
+
+@router.callback_query(F.data == "overwrite_no")
+async def confirm_overwrite_no(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    try:
+        await callback.message.edit_text(
+            "Хорошо, оставляем старые данные.\n"
+            "Когда захочешь заполнить новый чек-ин — нажми «😴 Мой сон»."
+        )
+    except Exception:
+        pass
+    await state.clear()
+
+
+async def _start_checkin_flow(message: Message, state: FSMContext, user_id: int):
+    """Единая точка старта чек-ина для message и callback."""
+    user = get_user(user_id)
     if not user:
-        await callback.message.answer("Сначала пройди регистрацию через /start.")
+        await message.answer("Сначала пройди регистрацию через /start.")
         return
 
     _, name, age, category, schedule = user
@@ -84,7 +113,7 @@ async def proceed_checkin_from_callback(callback: CallbackQuery, state: FSMConte
     await state.update_data(user_schedule=schedule, user_category=category)
 
     if "Учебный" in category or "Учебный" in schedule:
-        await callback.message.answer(
+        await message.answer(
             get_progress_bar(1) + "Какая вчера была учебная нагрузка?",
             reply_markup=get_study_load_inline(),
         )
@@ -92,7 +121,7 @@ async def proceed_checkin_from_callback(callback: CallbackQuery, state: FSMConte
         return
 
     if "Сменный" in schedule or "Сменный" in category:
-        await callback.message.answer(
+        await message.answer(
             get_progress_bar(1) + "Какая вчера была смена?",
             reply_markup=get_shift_type_inline(),
         )
@@ -100,7 +129,7 @@ async def proceed_checkin_from_callback(callback: CallbackQuery, state: FSMConte
         return
 
     if "Ночной" in schedule or "ночной" in category.lower():
-        await callback.message.answer(
+        await message.answer(
             get_progress_bar(1) + "Ты работал(а) вчера ночью?",
             reply_markup=get_night_shift_inline(),
         )
@@ -108,18 +137,7 @@ async def proceed_checkin_from_callback(callback: CallbackQuery, state: FSMConte
         return
 
     await state.update_data(shift_type=None, study_load=0)
-    await ask_sleep_time(callback.message, state)
-@router.callback_query(F.data == "overwrite_no")
-async def confirm_overwrite_no(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-    await delete_previous_msg(callback)
-    await state.clear()
-    await callback.message.answer(
-        "Хорошо, оставляем старые данные.\n"
-        "Когда захочешь заполнить новый чек-ин — нажми «😴 Мой сон».",
-        reply_markup=main_keyboard,
-    )
-
+    await ask_sleep_time(message, state)
 async def proceed_checkin(message: Message, state: FSMContext):
     user = get_user(message.from_user.id)
     if not user:

@@ -1,7 +1,8 @@
 import asyncio
 import logging
 import os
-
+import logging
+logging.basicConfig(level=logging.DEBUG)
 from aiogram import Bot, Dispatcher
 from dotenv import load_dotenv
 

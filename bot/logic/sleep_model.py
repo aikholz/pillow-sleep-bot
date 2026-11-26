@@ -660,63 +660,7 @@ def build_circadian_insights(circ):
     return "\n".join(lines)
 
 
-def analyze_shift_insights(rows):
-    """
-    Генерирует по 2 вывода для каждого типа смены.
-    Возвращает текст.
-    """
-    from collections import defaultdict
-    groups = defaultdict(list)
 
-    for row in rows:
-        if len(row) > 12 and row[12] and row[0] is not None:
-            sleep = float(row[0])
-            qual = row[1]
-            stress = row[4]
-            shift_type = row[12]
-            groups[shift_type].append({"sleep": sleep, "qual": qual, "stress": stress})
-
-    if len(groups) < 2:
-        return None
-
-    lines = ["🔄 АНАЛИЗ ПО ТВОИМ СМЕНАМ\n"]
-
-    for shift, data in groups.items():
-        if len(data) < 2:
-            continue
-
-        avg_sleep = sum(d["sleep"] for d in data) / len(data)
-        avg_qual = sum(d["qual"] for d in data if d["qual"] is not None) / max(1, len([d for d in data if
-                                                                                       d["qual"] is not None]))
-
-        lines.append(f"📌 <b>{shift}</b>:")
-
-        # Вывод 1: Продолжительность
-        if avg_sleep < 6.5:
-            lines.append(
-                f"• ⚠️ В эти дни ты спишь мало (в среднем {avg_sleep:.1f} ч). Это критически низкий уровень для восстановления.")
-        elif avg_sleep < 7.5:
-            lines.append(f"• 🟡 Продолжительность сна средняя ({avg_sleep:.1f} ч). Есть куда расти.")
-        else:
-            lines.append(f"• ✅ Хорошая продолжительность сна ({avg_sleep:.1f} ч). Организм успевает восстановиться.")
-
-        # Вывод 2: Качество или стресс
-        if avg_qual and avg_qual < 3.5:
-            lines.append(
-                f"• 📉 Качество сна страдает ({avg_qual:.1f}/5). Попробуй улучшить условия отдыха после этой смены.")
-        else:
-            lines.append(f"• 👍 Качество сна в норме ({avg_qual:.1f}/5).")
-
-        # Вывод 3 (бонусный): Если есть данные по стрессу
-        if len(data) >= 3:
-            avg_stress = sum(d["stress"] for d in data if d["stress"] is not None) / max(1, len([d for d in data if d[
-                "stress"] is not None]))
-            if avg_stress and avg_stress >= 4.0:
-                lines.append(f"• 😰 Высокий уровень стресса ({avg_stress:.1f}/5) в эти дни.")
-
-        lines.append("")  # Пустая строка для отступа
-
-    return "\n".join(lines)
 # =========================================================
 # АНАЛИЗ ПО СМЕНАМ (≥2 вывода на смену)
 # =========================================================
@@ -867,12 +811,11 @@ def analyze_schedule_insights(rows, category, schedule):
 
     # --- ФИЗИЧЕСКИЙ ТРУД ---
     elif is_physical:
-        lines.append("🏃 При физическом труде сон — главный инструмент восстановления мышц.")
         high_stress_days = sum(1 for r in rows if (r[4] or 0) >= 4)
         if high_stress_days >= 2:
-            lines.append(f"😰 У тебя {high_stress_days} дней с высоким стрессом — добавь растяжку или контрастный душ вечером.")
+            lines.append(
+                f"😰 У тебя {high_stress_days} дней с высоким стрессом — добавь растяжку или контрастный душ вечером.")
         lines.append("💡 Заканчивай тяжёлые тренировки за 3 часа до сна.")
-
     # --- СВОБОДНЫЙ / ФРИЛАНС ---
     elif is_free:
         lines.append("🎨 Свободный график — главный враг циркадных ритмов, если нет «якоря».")

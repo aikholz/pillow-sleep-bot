@@ -301,4 +301,4 @@ async def show_analysis(message: Message):
         report += "• Пока выраженных связей не обнаружено.\n"
 
     report += "\n📌 ИТОГ\nЭто наблюдаемые закономерности, а не диагноз."
-    await message.answer(report)
+    await message.answer(report, parse_mode="HTML")

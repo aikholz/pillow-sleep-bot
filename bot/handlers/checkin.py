@@ -65,17 +65,51 @@ async def start_checkin(message: Message, state: FSMContext):
 
     await state.clear()
     await proceed_checkin(message, state)
-
-@router.callback_query(F.data == "overwrite_yes", CheckinStates.confirm_overwrite)
+@router.callback_query(F.data == "overwrite_yes")
 async def confirm_overwrite_yes(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await delete_previous_msg(callback)
-    # Сбрасываем состояние, чтобы начать чек-ин с чистого листа
     await state.clear()
-    await proceed_checkin(callback.message, state)
+    await proceed_checkin_from_callback(callback, state)
+async def proceed_checkin_from_callback(callback: CallbackQuery, state: FSMContext):
+    user = get_user(callback.from_user.id)
+    if not user:
+        await callback.message.answer("Сначала пройди регистрацию через /start.")
+        return
 
+    _, name, age, category, schedule = user
+    schedule = schedule or ""
+    category = category or ""
 
-@router.callback_query(F.data == "overwrite_no", CheckinStates.confirm_overwrite)
+    await state.update_data(user_schedule=schedule, user_category=category)
+
+    if "Учебный" in category or "Учебный" in schedule:
+        await callback.message.answer(
+            get_progress_bar(1) + "Какая вчера была учебная нагрузка?",
+            reply_markup=get_study_load_inline(),
+        )
+        await state.set_state(CheckinStates.study_load)
+        return
+
+    if "Сменный" in schedule or "Сменный" in category:
+        await callback.message.answer(
+            get_progress_bar(1) + "Какая вчера была смена?",
+            reply_markup=get_shift_type_inline(),
+        )
+        await state.set_state(CheckinStates.shift_type)
+        return
+
+    if "Ночной" in schedule or "ночной" in category.lower():
+        await callback.message.answer(
+            get_progress_bar(1) + "Ты работал(а) вчера ночью?",
+            reply_markup=get_night_shift_inline(),
+        )
+        await state.set_state(CheckinStates.shift_type)
+        return
+
+    await state.update_data(shift_type=None, study_load=0)
+    await ask_sleep_time(callback.message, state)
+@router.callback_query(F.data == "overwrite_no")
 async def confirm_overwrite_no(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await delete_previous_msg(callback)
